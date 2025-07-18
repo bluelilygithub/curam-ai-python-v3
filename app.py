@@ -15,7 +15,7 @@ from datetime import datetime
 # Import professional services
 from config import Config
 from services import LLMService, PropertyAnalysisService
-from database_v3 import PropertyDatabase
+from enhanced_database import PropertyDatabase
 from utils import HealthChecker
 
 # Set up logging
