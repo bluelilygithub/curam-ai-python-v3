@@ -1,0 +1,714 @@
+/* =====================================================
+   CLEAN MCP-STYLES.CSS - DYNAMIC GROWING SIDEBAR
+   Replace your entire mcp-styles.css with this content
+   ===================================================== */
+
+/* Enhanced Progress Sidebar - DYNAMIC HEIGHT (NO SCROLLBARS) */
+.progress-sidebar {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    min-height: 120px; /* Minimum height for empty state */
+    position: relative;
+    transition: all 0.3s ease;
+    width: 100%;
+    /* NO max-height - let it grow! */
+    /* NO overflow - no scrollbars! */
+}
+
+.progress-sidebar.loading {
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
+}
+
+.progress-sidebar.completed {
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+}
+
+.progress-sidebar.error {
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.2);
+}
+
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-header h4 {
+    color: #fff;
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+.sidebar-timer {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    transition: all 0.3s ease;
+}
+
+.sidebar-timer.processing,
+.sidebar-timer.fetching-feeds,
+.sidebar-timer.claude-analysis,
+.sidebar-timer.gemini-analysis {
+    background: linear-gradient(45deg, #4f46e5, #7c3aed);
+    animation: pulse 2s infinite;
+}
+
+.sidebar-timer.completed {
+    background: linear-gradient(45deg, #10b981, #059669);
+}
+
+.sidebar-timer.error {
+    background: linear-gradient(45deg, #ef4444, #dc2626);
+}
+
+/* DYNAMIC LOG CONTAINER - GROWS WITH CONTENT */
+.sidebar-log {
+    min-height: 60px; /* Minimum for empty state */
+    display: flex;
+    flex-direction: column;
+    gap: 8px; /* Space between log entries */
+    /* NO max-height - let it grow! */
+    /* NO overflow - no scrollbars! */
+}
+
+/* Log Entry Styles */
+.log-entry {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border-left: 3px solid;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+    font-size: 0.9em;
+    line-height: 1.4;
+    animation: slideIn 0.3s ease-out;
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 0; /* Use gap from parent instead */
+}
+
+.log-entry:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateX(2px);
+}
+
+/* Log Content Layout */
+.log-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.log-icon {
+    font-size: 0.9em;
+    min-width: 20px;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.log-message {
+    flex: 1;
+    color: #e2e8f0;
+    font-weight: 400;
+    line-height: 1.3;
+    word-wrap: break-word;
+}
+
+.log-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    min-width: 80px;
+    flex-shrink: 0;
+}
+
+.log-time {
+    font-size: 0.75em;
+    color: rgba(255, 255, 255, 0.6);
+    font-family: 'Courier New', monospace;
+}
+
+.log-elapsed {
+    font-size: 0.7em;
+    color: rgba(255, 255, 255, 0.4);
+    font-family: 'Courier New', monospace;
+}
+
+/* Metadata Display */
+.log-metadata {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.8em;
+}
+
+.meta-item {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 8px;
+    border-radius: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.85em;
+}
+
+/* Type-Specific Styling */
+.log-entry.info {
+    border-left-color: #3b82f6;
+}
+
+.log-entry.success {
+    border-left-color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.log-entry.warning {
+    border-left-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.log-entry.error {
+    border-left-color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.log-entry.feed {
+    border-left-color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.1);
+}
+
+.log-entry.article {
+    border-left-color: #06b6d4;
+    background: rgba(6, 182, 212, 0.1);
+}
+
+.log-entry.api {
+    border-left-color: #84cc16;
+    background: rgba(132, 204, 22, 0.1);
+}
+
+.log-entry.processing {
+    border-left-color: #f97316;
+    background: rgba(249, 115, 22, 0.1);
+}
+
+.log-entry.data {
+    border-left-color: #ec4899;
+    background: rgba(236, 72, 153, 0.1);
+}
+
+/* Special Styling for Feed Entries */
+.log-entry.feed .log-message {
+    font-weight: 500;
+}
+
+.log-entry.feed .meta-item {
+    background: rgba(139, 92, 246, 0.2);
+    color: #c4b5fd;
+}
+
+/* Special Styling for Article Entries */
+.log-entry.article .log-message {
+    font-style: italic;
+    color: #bfdbfe;
+}
+
+.log-entry.article .meta-item {
+    background: rgba(6, 182, 212, 0.2);
+    color: #67e8f9;
+}
+
+/* Special Styling for API Entries */
+.log-entry.api .log-message {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85em;
+}
+
+/* Special Styling for Processing Entries */
+.log-entry.processing .log-message {
+    color: #fed7aa;
+}
+
+/* Special Styling for Data Entries */
+.log-entry.data .log-message {
+    font-weight: 500;
+    color: #fbbf24;
+}
+
+/* Hover Effects */
+.log-entry.feed:hover {
+    border-left-color: #a855f7;
+    background: rgba(139, 92, 246, 0.15);
+}
+
+.log-entry.article:hover {
+    border-left-color: #0891b2;
+    background: rgba(6, 182, 212, 0.15);
+}
+
+.log-entry.success:hover {
+    border-left-color: #059669;
+    background: rgba(16, 185, 129, 0.15);
+}
+
+.log-entry.error:hover {
+    border-left-color: #dc2626;
+    background: rgba(239, 68, 68, 0.15);
+}
+
+/* Animations */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes loading-sweep {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* Loading Animation for Sidebar */
+.progress-sidebar.loading::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #8b5cf6, transparent);
+    animation: loading-sweep 2s infinite;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .progress-sidebar {
+        margin-top: 16px;
+        min-height: 100px;
+    }
+    
+    .log-content {
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .log-meta {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+    }
+    
+    .log-metadata {
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .meta-item {
+        display: block;
+        text-align: center;
+    }
+    
+    .sidebar-header {
+        flex-direction: column;
+        gap: 8px;
+        text-align: center;
+    }
+    
+    .sidebar-timer {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+
+
+/* Enhanced LLM Dashboard Styling - 3 Charts */
+.llm-dashboard-container {
+    background: #ffffff;
+    border: 1px solid #e0e7ff;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-title {
+    color: #4f46e5;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    text-align: center;
+    border-bottom: 1px solid #e0e7ff;
+    padding-bottom: 8px;
+}
+
+.chart-container {
+    margin-bottom: 16px;
+    background: #fafafa;
+    border-radius: 6px;
+    padding: 12px;
+    border: 1px solid #f0f0f0;
+}
+
+.chart-container h4 {
+    color: #374151;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+.chart-container canvas {
+    max-width: 100%;
+    height: 120px !important;
+}
+
+/* Enhanced 2x2 Metrics Grid */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    background: #f8fafc;
+    border-radius: 6px;
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+}
+
+.metric {
+    text-align: center;
+    padding: 8px;
+    background: #ffffff;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+}
+
+.metric-label {
+    display: block;
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.metric-value {
+    display: block;
+    font-size: 14px;
+    color: #1e293b;
+    font-weight: 700;
+}
+
+/* Chart-specific styling */
+.chart-container:nth-child(2) {
+    /* Response Times - Blue theme */
+    border-left: 3px solid #4f46e5;
+}
+
+.chart-container:nth-child(3) {
+    /* Provider Performance - Green/Red theme */
+    border-left: 3px solid #059669;
+}
+
+.chart-container:nth-child(4) {
+    /* RSS Quality - Orange theme */
+    border-left: 3px solid #f59e0b;
+}
+
+/* Metric status colors */
+.metric-value.success {
+    color: #059669;
+}
+
+.metric-value.warning {
+    color: #f59e0b;
+}
+
+.metric-value.error {
+    color: #dc2626;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .llm-dashboard-container {
+        padding: 12px;
+    }
+    
+    .chart-container {
+        padding: 8px;
+        margin-bottom: 12px;
+    }
+    
+    .chart-container canvas {
+        height: 100px !important;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 12px;
+    }
+    
+    .metric {
+        padding: 6px;
+    }
+}
+
+/* Loading animation */
+.chart-container.loading {
+    opacity: 0.7;
+}
+
+.chart-container.loading::after {
+    content: "📊 Updating...";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    color: #64748b;
+}
+
+
+
+
+/* Preset Questions as Select Box Styling */
+.question-input-section {
+    background: #ffffff;
+    border: 1px solid #e0e7ff;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.question-input-section h3 {
+    color: #4f46e5;
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+/* Custom Question Input */
+.input-group {
+    margin-bottom: 16px;
+}
+
+.input-group label {
+    display: block;
+    color: #374151;
+    font-weight: 500;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+#property-question {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 80px;
+    transition: border-color 0.2s ease;
+}
+
+#property-question:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+#property-question::placeholder {
+    color: #9ca3af;
+}
+
+/* OR Divider */
+.divider {
+    text-align: center;
+    margin: 16px 0;
+    position: relative;
+}
+
+.divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: #e5e7eb;
+}
+
+.divider span {
+    background: #ffffff;
+    color: #6b7280;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 500;
+    position: relative;
+}
+
+/* Preset Questions Select */
+.preset-selection {
+    margin-bottom: 20px;
+}
+
+.preset-selection label {
+    display: block;
+    color: #374151;
+    font-weight: 500;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.preset-select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #ffffff;
+    color: #374151;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+    margin-bottom: 10px;
+}
+
+.preset-select:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.preset-select option {
+    padding: 8px;
+    color: #374151;
+}
+
+.preset-select option:first-child {
+    color: #9ca3af;
+    font-style: italic;
+}
+
+/* Use Preset Button */
+.use-preset-button {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.use-preset-button:hover {
+    background: #e5e7eb;
+    border-color: #9ca3af;
+}
+
+.use-preset-button:active {
+    background: #d1d5db;
+}
+
+.use-preset-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Analyze Button */
+.analyze-section {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.analyze-button {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    color: #ffffff;
+    border: none;
+    padding: 14px 28px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(79, 70, 229, 0.3);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.analyze-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(79, 70, 229, 0.4);
+}
+
+.analyze-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+}
+
+.analyze-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+}
+
+.button-icon {
+    font-size: 18px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .question-input-section {
+        padding: 16px;
+    }
+    
+    .preset-select,
+    #property-question {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+    
+    .analyze-button {
+        width: 100%;
+        justify-content: center;
+        padding: 16px;
+    }
+}

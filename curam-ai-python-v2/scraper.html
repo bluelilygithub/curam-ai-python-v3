@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web Scraper Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <style>
+        /* Override all fonts to use Montserrat */
+        * {
+            font-family: 'Montserrat', sans-serif !important;
+        }
+        
+        body, h1, h2, h3, h4, h5, h6, p, div, span, a, button, input, textarea, label, small {
+            font-family: 'Montserrat', sans-serif !important;
+        }
+        
+        .btn {
+            font-family: 'Montserrat', sans-serif !important;
+        }
+        
+        table, th, td {
+            font-family: 'Montserrat', sans-serif !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <h2>Web Scraper Dashboard</h2>
+        <p style="color: #adb5bd; margin: 5px 0 0 0;">Monitor competitor websites and track price changes automatically</p>
+    </div>
+
+    <!-- Hidden API Status (for JavaScript only) -->
+    <div id="api-status" style="display: none;"></div>
+    
+    <!-- Main Action Buttons -->
+    <div style="text-align: center; margin: 20px 0;">
+        <button onclick="scrapeNow()" class="btn btn-success" id="scrape-btn" disabled>
+            Scrape All Sites Now
+        </button>
+        <button onclick="refreshSites()" class="btn btn-info" id="refresh-btn" disabled>
+            Refresh Sites List
+        </button>
+        <button onclick="toggleAddSiteForm()" class="btn btn-primary" id="add-site-toggle-btn" disabled>
+            Add New Site
+        </button>
+        <button onclick="toggleCategoriesForm()" class="btn btn-secondary" id="scrape-categories-btn"  disabled>
+            Scrape Book Categories
+        </button>
+    </div>
+    
+    <!-- Flash Messages -->
+    <div id="flash-messages"></div>
+    
+    <!-- Results Display -->
+    <div id="results"></div>
+    
+    <!-- Add New Site Form (Hidden by default) -->
+    <div class="add-site-form" id="add-site-form-container" style="display: none;">
+        <h3>Add New Site to Monitor</h3>
+        <form id="add-site-form">
+            <div class="form-group">
+                <label>Site Name:</label>
+                <input type="text" id="site-name" placeholder="e.g., Amazon - iPhone 15 Pro" required>
+                <small style="color: #6c757d;">Give this site a descriptive name</small>
+            </div>
+            <div class="form-group">
+                <label>Website URL:</label>
+                <input type="url" id="site-url" placeholder="https://www.example.com/product-page" required>
+                <small style="color: #6c757d;">Full URL to the product or page you want to monitor</small>
+            </div>
+            <div class="form-group">
+                <label>Price CSS Selector:</label>
+                <input type="text" id="price-selector" placeholder="e.g., .price, #price, .a-price-whole" required>
+                <small style="color: #6c757d;">CSS selector that targets the price element (inspect element to find this)</small>
+            </div>
+            <div style="text-align: center; margin-top: 15px;">
+                <button type="submit" class="btn btn-primary" id="add-site-btn" disabled>Add Site to Monitor</button>
+                <button type="button" onclick="toggleAddSiteForm()" class="btn btn-secondary">Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Book Categories Selection Form (Hidden by default) -->
+    <div class="add-site-form" id="categories-form-container" style="display: none;">
+        <h3>Select Book Categories to Monitor</h3>
+        <form id="categories-form">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin: 20px 0;">
+                <label style="display: flex; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 4px; cursor: pointer;">
+                    <input type="checkbox" name="category" value="fiction" style="margin-right: 10px;">
+                    <div>
+                        <strong>Fiction</strong>
+                        <small style="display: block; color: #6c757d;">Classic and contemporary fiction books</small>
+                    </div>
+                </label>
+                
+                <label style="display: flex; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 4px; cursor: pointer;">
+                    <input type="checkbox" name="category" value="mystery" style="margin-right: 10px;">
+                    <div>
+                        <strong>Mystery & Thriller</strong>
+                        <small style="display: block; color: #6c757d;">Suspenseful and mystery novels</small>
+                    </div>
+                </label>
+                
+                <label style="display: flex; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 4px; cursor: pointer;">
+                    <input type="checkbox" name="category" value="romance" style="margin-right: 10px;">
+                    <div>
+                        <strong>Romance</strong>
+                        <small style="display: block; color: #6c757d;">Love stories and romantic novels</small>
+                    </div>
+                </label>
+                
+                <label style="display: flex; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 4px; cursor: pointer;">
+                    <input type="checkbox" name="category" value="science" style="margin-right: 10px;">
+                    <div>
+                        <strong>Science & Nature</strong>
+                        <small style="display: block; color: #6c757d;">Scientific and nature books</small>
+                    </div>
+                </label>
+                
+                <label style="display: flex; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 4px; cursor: pointer;">
+                    <input type="checkbox" name="category" value="history" style="margin-right: 10px;">
+                    <div>
+                        <strong>History</strong>
+                        <small style="display: block; color: #6c757d;">Historical books and biographies</small>
+                    </div>
+                </label>
+                
+                <label style="display: flex; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 4px; cursor: pointer;">
+                    <input type="checkbox" name="category" value="business" style="margin-right: 10px;">
+                    <div>
+                        <strong>Business & Economics</strong>
+                        <small style="display: block; color: #6c757d;">Business and financial books</small>
+                    </div>
+                </label>
+            </div>
+            
+            <div style="margin: 15px 0; padding: 10px; background: #e3f2fd; border-radius: 4px;">
+                <small style="color: #1976d2;">Each category will add 3-5 books to your monitoring list. You can select multiple categories.</small>
+            </div>
+            
+            <div style="text-align: center; margin-top: 15px;">
+                <button type="submit" class="btn btn-primary" id="add-categories-btn">Add Selected Categories</button>
+                <button type="button" onclick="toggleCategoriesForm()" class="btn btn-secondary">Cancel</button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Monitored Sites List with Analytics Buttons -->
+    <div style="background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; color: #495057; border-bottom: 2px solid #28a745; padding-bottom: 10px;">
+                Monitored Sites
+            </h3>
+            <!-- Analytics Buttons Moved Here -->
+            <div style="display: flex; gap: 10px;">
+                <button onclick="generateDemoData()" class="btn btn-warning" id="demo-btn" disabled>
+                    Generate Demo Data
+                </button>
+                <button onclick="viewAnalytics()" class="btn" id="analytics-btn" disabled style="background: #6f42c1; color: white;">
+                    View Analytics
+                </button>
+            </div>
+        </div>
+        
+        <div id="sites-container">
+            <div class="loading">Loading monitored sites</div>
+        </div>
+    </div>
+
+    <script src="assets/js/scraper-config.js"></script>
+    <script src="assets/js/scraper-ui.js"></script>
+    <script src="assets/js/scraper-sites.js"></script>
+    <script src="assets/js/scraper-actions.js"></script>
+</body>
+</html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Australian Property Intelligence</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇦🇺</text></svg>">
+    
+    <!-- Meta Tags for SEO -->
+    <meta name="description" content="AI-Powered Australian Property Market Analysis - Professional property intelligence using advanced AI for real estate insights across Australia">
+    <meta name="keywords" content="Australian property, real estate analysis, property intelligence, AI property analysis, Australian development, property trends">
+    <meta name="autyr" content="Property Intelligence Team">
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Australian Property Intelligence">
+    <meta property="og:description" content="AI-Powered Property Market Analysis for Australia">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://curam-ai.com.au/python-hub-v2/">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <link rel="stylesheet" href="assets/css/mcp-styles.css">
+    
+    <!-- Configuration (Load first) -->
+    <script src="assets/js/config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🇦🇺 Australian Property Intelligence</h1>
+            <p>AI-Powered Property Market Analysis for Australia</p>
+        </header>
+
+        <div class="main-content">
+            <div class="card">
+                <h3>📋 Australian Property Questions</h3>
+                <div class="preset-questions" id="presetQuestions">
+                    <!-- Questions will be loaded dynamically -->
+                </div>
+                
+                <div class="custom-input">
+                    <label for="customQuestion" class="input-label">
+                        Or ask your own question:
+                    </label>
+                    <textarea 
+                        id="customQuestion" 
+                        placeholder="Enter your Australian property question here..."
+                        rows="4"
+                    ></textarea>
+                </div>
+                
+                <button class="analyze-btn" id="analyzeBtn">
+                    🔍 Analyze Property Question
+                </button>
+
+
+<!-- Enhanced LLM Dashboard - 3 Charts -->
+<div id="llm-dashboard" class="llm-dashboard-container">
+    <h3 class="dashboard-title">
+        📊 System Performance Dashboard
+    </h3>
+    
+    <!-- Response Times Chart -->
+    <div class="chart-container">
+        <h4>⏱️ Response Times (Last 5 Queries)</h4>
+        <canvas id="responseTimesChart" width="300" height="120"></canvas>
+    </div>
+    
+    <!-- LLM Provider Performance Chart -->
+    <div class="chart-container">
+        <h4>🤖 LLM Provider Performance</h4>
+        <canvas id="providerPerformanceChart" width="300" height="120"></canvas>
+    </div>
+    
+    <!-- RSS Data Quality Chart -->
+    <div class="chart-container">
+        <h4>📰 RSS Data Sources</h4>
+        <canvas id="rssQualityChart" width="300" height="120"></canvas>
+    </div>
+    
+    <!-- Enhanced Metrics -->
+    <div class="metrics-grid">
+        <div class="metric">
+            <span class="metric-label">Success Rate:</span>
+            <span id="success-rate" class="metric-value">---%</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Avg Response:</span>
+            <span id="avg-response" class="metric-value">---s</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">Total Queries:</span>
+            <span id="total-queries" class="metric-value">---</span>
+        </div>
+        <div class="metric">
+            <span class="metric-label">RSS Status:</span>
+            <span id="rss-status" class="metric-value">---</span>
+        </div>
+    </div>
+</div>
+
+
+
+            </div>
+
+            <div class="card">
+                                
+                    <!-- REPLACED: Static "AI Powered by" block with Dynamic Activity Log -->
+                    <div class="progress-sidebar" id="activityLogSidebar">
+                        <div class="sidebar-header">
+                            <h4>🤖 Processing Activity</h4>
+                            <span class="sidebar-timer" id="processingTimer">Ready</span>
+                        </div>
+                        <div class="sidebar-log" id="activityLog">
+                            <div class="log-entry info">System ready for analysis...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card results-section">
+                <h3>📊 Analysis Results</h3>
+                <div class="results-content" id="resultsContent">
+                    <div class="placeholder">
+                        <div class="placeholder-icon">🏠</div>
+                        <h4>Ready for Australian Property Analysis</h4>
+                        <p>Select a question above to get started with AI-powered property analysis.</p>
+                        <p class="placeholder-subtitle">Your detailed analysis will appear here with professional insights about Australia's property markets using real-time RSS data from RealEstate.com.au, Smart Property Investment, and other industry sources.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h3>Australian Property Intelligence</h3>
+            <p>Initializing AI systems...</p>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notificationContainer" class="notification-container"></div>
+
+    <!-- MCP Framework Scripts (Load before main app) -->
+    <script src="assets/js/framework/mcp-core.js"></script>
+    <script src="assets/js/framework/mcp-dashboard.js"></script>
+    <script src="assets/js/framework/mcp-session.js"></script>
+    <script src="assets/js/framework/mcp-ui-core.js"></script>
+
+    <!-- Module Files (load before main app) -->
+    <script src="assets/js/modules/activity-logger.js"></script>
+    <script src="assets/js/modules/data-manager.js"></script>
+    <script src="assets/js/modules/ui-manager.js"></script>
+
+    <!-- Main App -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="assets/js/app-main.js"></script>
+    <script src="assets/js/dashboard.js"></script>
+</body>
+</html>
