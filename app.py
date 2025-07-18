@@ -15,7 +15,7 @@ from datetime import datetime
 # Import professional services
 from config import Config
 from services import LLMService, PropertyAnalysisService
-from database import PropertyDatabase
+from database_v3 import PropertyDatabase
 from utils import HealthChecker
 
 # Set up logging
@@ -718,6 +718,39 @@ def reset_property_database():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@app.route('/admin/migrate', methods=['POST'])
+def run_migration():
+    """Temporary endpoint to run V3 migration - REMOVE AFTER USE"""
+    try:
+        logger.info("🚀 Starting database migration to V3...")
+        
+        from migrate_to_v3 import migrate_existing_data
+        success = migrate_existing_data()
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Migration to V3 completed successfully!',
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Migration failed - check Railway logs',
+                'timestamp': datetime.now().isoformat()
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"❌ Migration endpoint error: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
 
 # Error handlers
 @app.errorhandler(404)

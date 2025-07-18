@@ -1,35 +1,41 @@
-# Existing core dependencies
+# Core Flask Application
 Flask==2.3.3
 flask-cors==4.0.0
-pandas==2.0.3
-numpy==1.25.2
-matplotlib==3.7.2
-requests==2.31.0
-beautifulsoup4==4.12.2
-schedule==1.2.0
-reportlab==4.0.4
 gunicorn==21.2.0
 Werkzeug==2.3.7
 python-dotenv==1.0.0
-Pillow==10.0.0
+
+# Database Support
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+
+# LLM and AI Integration
+anthropic==0.28.1
+httpx==0.24.1
+google-generativeai==0.3.2
+
+# Data Processing and Analysis
+pandas==2.0.3
+numpy==1.25.2
+matplotlib==3.7.2
 scipy==1.11.2
 seaborn==0.12.2
 
-# LLM and AI Integration
-anthropic==0.28.1  # Stable version
-httpx==0.24.1  # Pin compatible httpx version
-google-generativeai==0.3.2
-
-# Data Processing and RSS Feeds
-feedparser==6.0.10
+# Web Scraping and RSS Feeds
 requests==2.31.0
+beautifulsoup4==4.12.2
+feedparser==6.0.10
 
-# PostgreSQL Database Support (new)
-psycopg2-binary==2.9.9
+# Document Generation and Image Processing
+reportlab==4.0.4
+Pillow==10.0.0
 
-# Additional API Integrations (new)
+# Task Scheduling
+schedule==1.2.0
+
+# Additional API Integrations
 huggingface-hub==0.20.2
 stability-sdk==0.8.6
 
-# Email Validation for MailChannels (new)
+# Email Validation
 email-validator==2.1.0
