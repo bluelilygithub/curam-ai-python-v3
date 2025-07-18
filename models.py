@@ -1,6 +1,6 @@
 """
 SQLAlchemy Models for Australian Property Intelligence V3
-Enhanced database structure building on existing SQLite schema
+FIXED: Removed reserved word 'metadata' conflict
 """
 
 from datetime import datetime
@@ -42,7 +42,7 @@ class SystemMetrics(Base):
     metric_type = Column(String(50), nullable=False)  # 'response_time', 'llm_performance', etc.
     metric_value = Column(Float, nullable=False)
     user_id = Column(String(50), default='system')
-    metadata = Column(Text)  # JSON for additional context
+    extra_data = Column(Text)  # FIXED: Changed from 'metadata' to 'extra_data' (JSON)
     recorded_at = Column(DateTime, default=func.now())
 
 class DemoUser(Base):

@@ -315,7 +315,7 @@ class PropertyDatabaseV3:
             logger.error(f"❌ Failed to get user stats: {str(e)}")
             return {}
     
-    def record_system_metric(self, metric_type: str, value: float, user_id: str = 'system', metadata: dict = None):
+    def record_system_metric(self, metric_type: str, value: float, user_id: str = 'system', extra_data: dict = None):
         """Record system performance metrics"""
         try:
             session = self.db_config.get_session()
@@ -324,7 +324,7 @@ class PropertyDatabaseV3:
                 metric_type=metric_type,
                 metric_value=value,
                 user_id=user_id,
-                metadata=json.dumps(metadata) if metadata else None
+                extra_data=json.dumps(extra_data) if extra_data else None
             )
             
             session.add(metric)
