@@ -486,10 +486,10 @@ def get_user_history(user_id: str):
 # ================================
 
 @app.route('/api/property/analyze', methods=['POST'])
-async def analyze_property_question(): # Changed to async
+async def analyze_property_question():
     """
-    Analyzes a user's property question using LLMs and RSS data,
-    and stores the analysis result in the database.
+    DEBUG VERSION: Analyzes a user's property question with extensive logging
+    to identify where the log clearing and source attribution issues are.
     """
     try:
         data = request.get_json()
@@ -500,7 +500,7 @@ async def analyze_property_question(): # Changed to async
             }), 400
         
         question = data.get('question', '').strip()
-        user_id = data.get('user_id', 'anonymous') # Track user ID for analysis
+        user_id = data.get('user_id', 'anonymous')
         
         if not question:
             return jsonify({
@@ -514,25 +514,40 @@ async def analyze_property_question(): # Changed to async
                 'error': 'Property analysis service not available.'
             }), 500
         
+        # DEBUG: Log before clearing
+        logger.info(f"🔍 DEBUG: About to clear activity log for user '{user_id}'")
+        
         # ✨ CLEAR ACTIVITY LOG FOR NEW QUESTION
-        clear_activity_log()
-        logger.info(f"🔄 Activity log cleared for new question from user '{user_id}'")
+        try:
+            clear_activity_log()
+            logger.info(f"✅ DEBUG: Activity log cleared successfully for user '{user_id}'")
+        except Exception as e:
+            logger.error(f"❌ DEBUG: Failed to clear activity log: {e}")
+        
+        # DEBUG: Check web search service status
+        if services.get('web_search'):
+            logger.info(f"🌐 DEBUG: Web search service available: {services['web_search'].is_available}")
+        else:
+            logger.info("🌐 DEBUG: Web search service NOT available")
         
         logger.info(f"🔍 Processing property question for user '{user_id}': '{question[:70]}{'...' if len(question) > 70 else ''}'")
         start_time = time.time()
         
         # Use professional property analysis service
-        result = await services['property'].analyze_property_question(question) # Await the async call
+        result = await services['property'].analyze_property_question(question)
         processing_time = time.time() - start_time
         
-        # Determine location and LLM provider from the result for V3 tracking
-        location_detected = detect_location_from_question(question) # Assuming this function uses the original question
-        llm_provider = determine_llm_provider(result) # Determine based on which LLM was successful
+        # DEBUG: Log the result structure
+        logger.info(f"🔍 DEBUG: Analysis result keys: {list(result.keys())}")
+        logger.info(f"🔍 DEBUG: Sources in result: {result.get('sources', 'NO SOURCES KEY')}")
+        
+        # Determine location and LLM provider from the result
+        location_detected = detect_location_from_question(question)
+        llm_provider = determine_llm_provider(result)
         
         query_id = None
         if services['database'] and result['success']:
             try:
-                # Store the detailed query and analysis in the database
                 query_id = services['database'].store_query(
                     question=question,
                     answer=result['final_answer'],
@@ -541,12 +556,16 @@ async def analyze_property_question(): # Changed to async
                     success=result['success'],
                     location_detected=location_detected,
                     llm_provider=llm_provider,
-                    confidence_score=result.get('confidence', 0.85), # Default confidence if not in result
+                    confidence_score=result.get('confidence', 0.85),
                     user_id=user_id
                 )
                 logger.info(f"💾 Query stored successfully with ID: {query_id} for user: '{user_id}'.")
             except Exception as e:
                 logger.error(f"❌ Failed to store query for user '{user_id}': {e}")
+        
+        # DEBUG: Check if sources exist before building response
+        sources_data = result.get('sources', {})
+        logger.info(f"🔍 DEBUG: Building response with sources: {sources_data}")
         
         response = {
             'success': result['success'],
@@ -555,21 +574,29 @@ async def analyze_property_question(): # Changed to async
             'processing_time': round(processing_time, 2),
             'query_id': query_id,
             'user_id': user_id,
-            'sources': result.get('sources', {}), # Include source information
+            'sources': sources_data,
+            'debug_info': {  # DEBUG: Add debug info to response
+                'web_search_available': services.get('web_search') is not None,
+                'web_search_configured': services.get('web_search').is_available if services.get('web_search') else False,
+                'result_keys': list(result.keys()),
+                'sources_found': bool(sources_data)
+            },
             'metadata': {
                 'location_detected': location_detected,
                 'llm_provider': llm_provider,
                 'confidence': result.get('confidence', 0.85),
                 'sources_used': {
-                    'rss_count': len(result.get('sources', {}).get('rss_sources', [])),
-                    'search_count': len(result.get('sources', {}).get('search_sources', [])),
-                    'total_sources': result.get('sources', {}).get('total_sources', 0)
+                    'rss_count': len(sources_data.get('rss_sources', [])),
+                    'search_count': len(sources_data.get('search_sources', [])),
+                    'total_sources': sources_data.get('total_sources', 0)
                 }
             },
             'timestamp': datetime.now().isoformat()
         }
         
         logger.info(f"✅ Analysis completed in {processing_time:.2f}s for user '{user_id}'.")
+        logger.info(f"🔍 DEBUG: Final response sources: {response['sources']}")
+        
         return jsonify(response)
         
     except Exception as e:
@@ -579,6 +606,9 @@ async def analyze_property_question(): # Changed to async
             'error': f"Failed to analyze question: {str(e)}",
             'timestamp': datetime.now().isoformat()
         }), 500
+
+
+        
 
 @app.route('/api/property/questions', methods=['GET'])
 def get_property_questions():
