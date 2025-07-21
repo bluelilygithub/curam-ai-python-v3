@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Australian Property Intelligence V3 - User Analytics Demo</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script> 
+    
 
      <link rel="stylesheet" href="assets/css/styles.css">
 
@@ -15,11 +17,9 @@
             <h1>🏠 Australian Property Intelligence</h1>
         </div>
 
-        <!-- User Selector -->
         <div class="user-selector">
             <h3>👥 Experience Personalized Property Analytics</h3>
             <div class="user-buttons" id="userButtons">
-                <!-- User buttons will be populated dynamically -->
                 <div class="loading">
                     <div class="spinner"></div>
                     <p>Loading demo users...</p>
@@ -46,12 +46,10 @@
                 </div>
 
                 <div id="results" style="display: none;">
-                    <!-- Results will be populated here -->
-                </div>
+                    </div>
             </div>
 
             <div class="sidebar">
-                <!-- User Profile -->
                 <div class="user-profile" id="userProfile">
                     <div class="empty-state">
                         <span class="emoji">👤</span>
@@ -60,7 +58,6 @@
                     </div>
                 </div>
 
-                <!-- Query History -->
                 <div class="query-history">
                     <h4>📝 Recent Searches</h4>
                     <div id="queryHistoryList">
@@ -70,21 +67,18 @@
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- NEW: Real-Time Activity Log -->
-            <div class="activity-log">
-                <h4>⚡ Real-Time Activity</h4>
-                <div class="activity-feed" id="activityFeed">
-                    <div class="empty-state">
-                        <span class="emoji">🔄</span>
-                        <p>System activity will appear here</p>
+                <div class="activity-log">
+                    <h4>⚡ Real-Time Activity</h4>
+                    <div class="activity-feed" id="activityFeed">
+                        <div class="empty-state">
+                            <span class="emoji">🔄</span>
+                            <p>System activity will appear here</p>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
+            </div> </div>
 
-        <!-- Performance Dashboard -->
         <div class="dashboard">
             <h3>📊 Real-Time System Analytics</h3>
             <div class="chart-container">
@@ -98,14 +92,15 @@
         let currentUser = null;
         let demoUsers = [];
         let performanceChart = null;
-        let activityFeed = [];
+        let activityFeed = []; // This array might not be strictly needed if logs are only prepended to DOM
         const API_BASE = 'https://curam-ai-python-v3-production.up.railway.app';
+        let eventSource = null; // Declare eventSource globally here.
 
         // User-specific preset questions
         const userPresets = {
             'sarah_buyer': [
                 "Best suburbs under $600k for first home buyers in Brisbane",
-                "Units near train stations in Brisbane", 
+                "Units near train stations in Brisbane",
                 "First home buyer grants and assistance",
                 "Safest affordable suburbs for young professionals"
             ],
@@ -117,121 +112,219 @@
             ]
         };
 
-        // Initialize application
+        // --- Core Activity Log Function ---
+        // This function adds a new entry to the activity log.
+        // It's used by both the initial frontend load and the SSE stream.
+        function addActivity(type, emoji, title, message, details = {}) {
+            const activityFeedDiv = document.getElementById('activityFeed');
+            if (!activityFeedDiv) {
+                console.error("Activity log div with ID 'activityFeed' not found!");
+                return;
+            }
+
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            
+            let detailsHtml = '';
+            // Format timestamp specifically for display
+            if (details.timestamp) {
+                const ts = new Date(details.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                detailsHtml += `<span class="timestamp">${ts}</span>`;
+            }
+            
+            // Convert other details (if any) to pre-formatted JSON
+            const otherDetails = { ...details };
+            delete otherDetails.timestamp; // Remove timestamp if already displayed in its own span
+
+            if (Object.keys(otherDetails).length > 0) {
+                detailsHtml += `<pre>${JSON.stringify(otherDetails, null, 2)}</pre>`;
+            }
+
+            logEntry.innerHTML = `
+                <span class="emoji">${emoji}</span>
+                <div class="log-content">
+                    <strong>${title}</strong>
+                    <p>${message}</p>
+                </div>
+                <div class="log-details">${detailsHtml}</div>
+            `;
+            activityFeedDiv.prepend(logEntry); // Add new logs to the top
+
+            // Optional: Limit number of logs to prevent UI overload
+            if (activityFeedDiv.children.length > 50) { // Limit to 50 logs
+                activityFeedDiv.removeChild(activityFeedDiv.lastChild);
+            }
+        }
+
+
+        // Initialize application (no change needed here for `initLiveLogStream` call)
         async function initApp() {
             try {
                 console.log('🚀 Initializing Australian Property Intelligence V3...');
-                
-                // Initialize activity log
-                initActivityLog();
-                
+
+                // Initialize the live log stream first
+                initLiveLogStream();
+                addActivity('connecting', '🔗', 'System Status', 'Waiting for live log stream from backend...');
+
+                // Now proceed with other initializations
                 await loadDemoUsers();
                 await loadSystemStats();
                 setupPerformanceChart();
-                
+
                 console.log('✅ Application initialized successfully');
             } catch (error) {
                 console.error('❌ Error initializing app:', error);
+                addActivity('error', '🚨', 'App Initialization Failed', `Failed to initialize application: ${error.message}`, { status: 'Error' });
                 showError('Failed to initialize application. Please refresh the page.');
             }
         }
 
-        // NEW: Initialize Activity Log
-        function initActivityLog() {
-            addActivity('connecting', '🚀', 'System Initialization', 'Starting Australian Property Intelligence V3...', { status: 'Loading' });
-            
-            // Simulate initial system activities
-            setTimeout(() => {
-                addActivity('success', '✅', 'Database Connected', 'PostgreSQL connection established', { status: 'Ready' });
-            }, 1000);
-            
-            setTimeout(() => {
-                addActivity('success', '🤖', 'AI Services Ready', 'Claude & Gemini LLM providers connected', { status: 'Online' });
-            }, 1500);
-        }
-
-        // NEW: Add Activity to Log
-        function addActivity(type, icon, title, details, meta = {}) {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                second: '2-digit' 
-            });
-            
-            const activity = {
-                id: Date.now(),
-                type: type, // 'connecting', 'success', 'processing', 'error'
-                icon: icon,
-                title: title,
-                details: details,
-                meta: meta,
-                timestamp: now,
-                timeString: timeString
-            };
-            
-            // Add to beginning of array (newest first)
-            activityFeed.unshift(activity);
-            
-            // Keep only last 50 activities
-            if (activityFeed.length > 50) {
-                activityFeed = activityFeed.slice(0, 50);
+        // Function to set up and manage the SSE connection for live logs
+        function initLiveLogStream() {
+            if (eventSource) {
+                eventSource.close(); // Close existing connection if any
+                console.log("Closed existing EventSource connection.");
             }
-            
-            // Update UI
-            renderActivityFeed();
-        }
 
-        // NEW: Render Activity Feed
-        function renderActivityFeed() {
-            const feedContainer = document.getElementById('activityFeed');
-            
-            if (activityFeed.length === 0) {
-                feedContainer.innerHTML = `
-                    <div class="empty-state">
-                        <span class="emoji">🔄</span>
-                        <p>System activity will appear here</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            feedContainer.innerHTML = '';
-            
-            activityFeed.forEach(activity => {
-                const item = document.createElement('div');
-                item.className = `activity-item ${activity.type}`;
-                
-                // Create stats display if meta has useful info
-                let statsHtml = '';
-                if (activity.meta.articles) {
-                    statsHtml = `<span class="activity-stats">${activity.meta.articles} articles</span>`;
-                } else if (activity.meta.status) {
-                    statsHtml = `<span class="activity-stats">${activity.meta.status}</span>`;
-                } else if (activity.meta.time) {
-                    statsHtml = `<span class="activity-stats">${activity.meta.time}</span>`;
+            eventSource = new EventSource(`${API_BASE}/stream_logs`);
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const logData = JSON.parse(event.data);
+                    
+                    // Only process if it's a valid log message (not a keep-alive or empty)
+                    if (!logData.message) {
+                        return; // Skip empty keep-alive messages
+                    }
+
+                    // --- Filtering Logic (Exclude obvious UI actions) ---
+                    const excludedMessages = [
+                        "Live log stream handler initialized and attached to root logger.",
+                        "Connecting to user management API...",
+                        "Found 2 demo users: Sarah Chen, Michael Rodriguez",
+                        "Now viewing Sarah Chen's personalized analytics",
+                        "Now viewing Michael Rodriguez's personalized analytics",
+                        "Starting Australian Property Intelligence API V3.0", // This is logged on backend start, but can be skipped if you have a cleaner "API Online" message
+                        "Port:", "Debug:", "Database:", "User Switching:", // Startup config logs
+                        "Services initialized:", // Combined service initialization success
+                        "LLM service initialized", // Initial service status (often followed by model tests)
+                        "RSS service initialized",
+                        "Property analysis service initialized",
+                        "Health checker initialized",
+                        "PostgreSQL database service initialized" // Initial DB connection
+                    ];
+
+                    // Check if the message should be filtered out
+                    if (excludedMessages.some(msg => logData.message.includes(msg))) {
+                        return; // Skip this log entry
+                    }
+
+                    // --- Intelligent Emoji and Type Assignment ---
+                    let emoji = 'ℹ️'; // Default for INFO
+                    let type = 'info'; // Default type
+                    let title = logData.level; // Start title with log level
+
+                    switch (logData.level) {
+                        case 'INFO':
+                            // Specific backend activities
+                            if (logData.message.includes("CLAUDE PROMPT BEING SENT")) {
+                                emoji = '📝'; type = 'processing'; title = 'Claude Prompt';
+                                logData.message = "Sending prompt to Claude..."; // Shorten message for log view
+                            } else if (logData.message.includes("GEMINI PROMPT BEING SENT")) {
+                                emoji = '📝'; type = 'processing'; title = 'Gemini Prompt';
+                                logData.message = "Sending prompt to Gemini..."; // Shorten message for log view
+                            } else if (logData.message.includes("Retrieved") && logData.message.includes("articles")) {
+                                emoji = '📥'; type = 'success'; title = 'RSS Data Retrieved';
+                            } else if (logData.message.includes("Converted") && logData.message.includes("articles to data sources")) {
+                                emoji = '📊'; type = 'success'; title = 'RSS Data Processed';
+                            } else if (logData.message.includes("LOCATION DETECTION")) {
+                                emoji = '📍'; type = 'info'; title = 'Location Detected';
+                                // Extract location for display in details
+                                const match = logData.message.match(/LOCATION DETECTION FINAL RESULT: \{'scope': '([^']*)'/);
+                                if (match && match[1]) {
+                                    logData.details = { scope: match[1] };
+                                    logData.message = `Location detected: ${match[1]}`;
+                                }
+                            } else if (logData.message.includes("Claude model") && logData.message.includes("working")) {
+                                emoji = '✅'; type = 'success'; title = 'Claude Model Test';
+                            } else if (logData.message.includes("Gemini initialized with model")) {
+                                emoji = '✅'; type = 'success'; title = 'Gemini Model Test';
+                            } else if (logData.message.includes("Processing property question")) {
+                                emoji = '🔍'; type = 'processing'; title = 'Processing Question';
+                            } else if (logData.message.includes("Query stored")) {
+                                emoji = '💾'; type = 'success'; title = 'Query Stored';
+                            } else if (logData.message.includes("Analysis completed")) {
+                                emoji = '✅'; type = 'success'; title = 'Analysis Complete';
+                            } else if (logData.message.includes("Get demo users error")) {
+                                emoji = '👥'; type = 'error'; title = 'User Load Error';
+                            } else if (logData.message.includes("Get user statistics error")) {
+                                emoji = '📊'; type = 'error'; title = 'User Stats Error';
+                            } else if (logData.message.includes("Get user history error")) {
+                                emoji = '📝'; type = 'error'; title = 'User History Error';
+                            } else if (logData.message.includes("Property analysis error")) {
+                                emoji = '❌'; type = 'error'; title = 'Analysis Error';
+                            } else if (logData.message.includes("Get questions error")) {
+                                emoji = '❓'; type = 'error'; title = 'Questions Error';
+                            } else if (logData.message.includes("Failed to get popular questions")) {
+                                emoji = '📈'; type = 'error'; title = 'Popular Qs Error';
+                            } else if (logData.message.includes("Get history error")) {
+                                emoji = '📜'; type = 'error'; title = 'History Error';
+                            } else if (logData.message.includes("Get stats error")) {
+                                emoji = '📊'; type = 'error'; title = 'Stats Error';
+                            } else if (logData.message.includes("LLM performance analysis failed")) {
+                                emoji = '📉'; type = 'error'; title = 'Perf Analysis Error';
+                            } else if (logData.message.includes("Failed to store query")) {
+                                emoji = '💾'; type = 'error'; title = 'DB Store Error';
+                            }
+                            break;
+                        case 'WARNING':
+                            emoji = '⚠️'; type = 'warning'; title = 'Warning';
+                            if (logData.message.includes("API key not configured")) {
+                                title = 'API Key Missing';
+                            } else if (logData.message.includes("service not available")) {
+                                title = 'Service Unavailable';
+                            }
+                            break;
+                        case 'ERROR':
+                            emoji = '❌'; type = 'error'; title = 'Error';
+                            break;
+                        case 'DEBUG':
+                            emoji = '🐛'; type = 'debug'; title = 'Debug';
+                            break;
+                    }
+
+                    // Add logger name to title if available and not 'app' or main
+                    if (logData.name && logData.name !== '__main__' && logData.name !== 'app') {
+                         title += ` (${logData.name.split('.').pop()})`; // e.g., (llm_service), (enhanced_database)
+                    }
+
+                    // Prepare details object for addActivity (combining existing details with logData.details)
+                    const activityDetails = logData.details || {}; // Use logData.details if already set in filtering
+                    if (logData.timestamp) activityDetails.timestamp = logData.timestamp;
+
+
+                    // Call addActivity with the processed data
+                    addActivity(type, emoji, title, logData.message, activityDetails);
+
+                } catch (e) {
+                    console.error("Failed to parse log message or process it:", e, event.data);
+                    addActivity('error', '🚨', 'Log Parser Error', `Could not parse log message (check console): ${event.data.substring(0, 100)}...`, { error: e.message });
                 }
-                
-                item.innerHTML = `
-                    <div class="activity-icon">${activity.icon}</div>
-                    <div class="activity-content">
-                        <div class="activity-title">${activity.title}</div>
-                        <div class="activity-details">${activity.details}</div>
-                        <div class="activity-meta">
-                            <span class="activity-time">${activity.timeString}</span>
-                            ${statsHtml}
-                        </div>
-                    </div>
-                `;
-                
-                feedContainer.appendChild(item);
-            });
+            };
+
+            eventSource.onerror = function(err) {
+                console.error("EventSource failed:", err);
+                addActivity('error', '🚨', 'Log Stream Error', 'Lost connection to live log stream. Attempting to reconnect...', { error: err.message || 'Unknown error' });
+            };
+
+            console.log('🔗 Attempting to connect to live log stream.');
         }
 
         // Load demo users from API
         async function loadDemoUsers() {
             try {
-                addActivity('connecting', '👥', 'Loading Demo Users', 'Connecting to user management API...', { status: 'Loading' });
+                // This message is now managed by the live log stream, remove redundant addActivity
+                // addActivity('connecting', '👥', 'Loading Demo Users', 'Connecting to user management API...', { status: 'Loading' });
                 
                 const response = await fetch(`${API_BASE}/api/users`);
                 const data = await response.json();
@@ -239,7 +332,8 @@
                 if (data.success) {
                     demoUsers = data.users;
                     renderUserButtons();
-                    addActivity('success', '✅', 'Demo Users Loaded', `Found ${demoUsers.length} demo users: ${demoUsers.map(u => u.name).join(', ')}`, { users: demoUsers.length });
+                    // This message is now managed by the live log stream, remove redundant addActivity
+                    // addActivity('success', '✅', 'Demo Users Loaded', `Found ${demoUsers.length} demo users: ${demoUsers.map(u => u.name).join(', ').substring(0, 50)}...`, { users: demoUsers.length });
                     console.log(`✅ Loaded ${demoUsers.length} demo users`);
                 } else {
                     throw new Error(data.error || 'Failed to load users');
@@ -289,7 +383,8 @@
                 currentUser = userId;
                 const user = demoUsers.find(u => u.user_id === userId);
                 
-                addActivity('processing', '🔄', 'User Switch', `Switching to ${user.name} (${getProfileTypeLabel(user.profile_type)})`, { user: user.name });
+                // This message is now managed by the live log stream, remove redundant addActivity
+                // addActivity('processing', '🔄', 'User Switch', `Switching to ${user.name} (${getProfileTypeLabel(user.profile_type)})`, { user: user.name });
                 
                 // Update UI to show active user
                 document.querySelectorAll('.user-btn').forEach(btn => {
@@ -315,7 +410,8 @@
                 // Clear any existing results
                 document.getElementById('results').style.display = 'none';
 
-                addActivity('success', '✅', 'User Switch Complete', `Now viewing ${user.name}'s personalized analytics`, { status: 'Active' });
+                // This message is now managed by the live log stream, remove redundant addActivity
+                // addActivity('success', '✅', 'User Switch Complete', `Now viewing ${user.name}'s personalized analytics`, { status: 'Active' });
                 console.log(`✅ Successfully switched to ${user.name}`);
                 
             } catch (error) {
@@ -328,17 +424,19 @@
         // Load user statistics
         async function loadUserStats(userId) {
             try {
-                addActivity('connecting', '📊', 'Loading User Stats', `Fetching analytics for ${userId}...`, { status: 'Loading' });
+                // This message is now managed by the live log stream, remove redundant addActivity
+                // addActivity('connecting', '📊', 'Loading User Stats', `Fetching analytics for ${userId}...`, { status: 'Loading' });
                 
                 const response = await fetch(`${API_BASE}/api/users/${userId}/stats`);
                 const data = await response.json();
                 
                 if (data.success) {
                     updateUserProfile(data.data);
-                    addActivity('success', '📈', 'User Stats Loaded', `Analytics loaded: ${data.data.stats.total_queries} queries, ${data.data.stats.avg_processing_time}s avg time`, { 
-                        queries: data.data.stats.total_queries,
-                        time: `${data.data.stats.avg_processing_time}s`
-                    });
+                    // This message is now managed by the live log stream, remove redundant addActivity
+                    // addActivity('success', '📈', 'User Stats Loaded', `Analytics loaded: ${data.data.stats.total_queries} queries, ${data.data.stats.avg_processing_time}s avg time`, { 
+                    //     queries: data.data.stats.total_queries,
+                    //     time: `${data.data.stats.avg_processing_time}s`
+                    // });
                     console.log(`✅ Loaded stats for ${userId}`);
                 } else {
                     throw new Error(data.error || 'Failed to load user stats');
@@ -443,142 +541,111 @@
         }
 
         // Analyze property question with enhanced activity logging
-        async function analyzeQuestion(question) {
-            if (!currentUser) {
-                alert('Please select a user first');
-                return;
-            }
+async function analyzeQuestion(question) {
+    if (!currentUser) {
+        alert('Please select a user first');
+        return;
+    }
 
-            const user = demoUsers.find(u => u.user_id === currentUser);
-            addActivity('processing', '🔍', 'Starting Analysis', `Processing: "${question.substring(0, 50)}${question.length > 50 ? '...' : ''}"`, { user: user.name });
+    const user = demoUsers.find(u => u.user_id === currentUser);
+    // Removed direct addActivity for starting analysis as it's now logged from backend.
 
-            const resultsDiv = document.getElementById('results');
-            resultsDiv.style.display = 'block';
+    const resultsDiv = document.getElementById('results');
+    resultsDiv.style.display = 'block';
+    resultsDiv.innerHTML = `
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Analyzing property question for ${user?.name}...</p>
+        </div>
+    `;
+
+    // Scroll to results
+    resultsDiv.scrollIntoView({ behavior: 'smooth' });
+
+    try {
+        console.log(`🔍 Analyzing question for ${currentUser}: ${question}`);
+        
+        const response = await fetch(`${API_BASE}/api/property/analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                question: question,
+                user_id: currentUser
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Removed direct addActivity for analysis complete as it's now logged from backend.
+            
+            // --- CRITICAL CHANGE HERE: Use marked.parse() ---
+            const formattedAnswerHtml = marked.parse(data.answer || ''); // Render Markdown to HTML
+
             resultsDiv.innerHTML = `
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <p>Analyzing property question for ${user?.name}...</p>
+                <div class="results fade-in">
+                    <h3>📋 Analysis Results for ${user?.name}</h3>
+                    <div class="analysis-content">${formattedAnswerHtml}</div> <div class="metadata">
+                        <div class="metadata-item">
+                            <span><strong>Location:</strong></span>
+                            <span>${data.metadata.location_detected}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <span><strong>Processing Time:</strong></span>
+                            <span>${data.processing_time}s</span>
+                        </div>
+                        <div class="metadata-item">
+                            <span><strong>LLM Provider:</strong></span>
+                            <span>${data.metadata.llm_provider}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <span><strong>Confidence:</strong></span>
+                            <span>${Math.round(data.metadata.confidence * 100)}%</span>
+                        </div>
+                        <div class="metadata-item">
+                            <span><strong>Query ID:</strong></span>
+                            <span>#${data.query_id}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <span><strong>User:</strong></span>
+                            <span>${currentUser}</span>
+                        </div>
+                    </div>
                 </div>
             `;
 
-            // Scroll to results
-            resultsDiv.scrollIntoView({ behavior: 'smooth' });
-
-            try {
-                console.log(`🔍 Analyzing question for ${currentUser}: ${question}`);
-                
-                // Simulate RSS data gathering activities
-                simulateRSSActivities();
-                
-                const response = await fetch(`${API_BASE}/api/property/analyze`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        question: question,
-                        user_id: currentUser
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    addActivity('success', '✅', 'Analysis Complete', `Generated comprehensive property analysis in ${data.processing_time}s`, { 
-                        time: `${data.processing_time}s`,
-                        provider: data.metadata.llm_provider
-                    });
-                    
-                    resultsDiv.innerHTML = `
-                        <div class="results fade-in">
-                            <h3>📋 Analysis Results for ${user?.name}</h3>
-                            <div class="analysis-content">${data.answer}</div>
-                            <div class="metadata">
-                                <div class="metadata-item">
-                                    <span><strong>Location:</strong></span>
-                                    <span>${data.metadata.location_detected}</span>
-                                </div>
-                                <div class="metadata-item">
-                                    <span><strong>Processing Time:</strong></span>
-                                    <span>${data.metadata.processing_time}s</span>
-                                </div>
-                                <div class="metadata-item">
-                                    <span><strong>LLM Provider:</strong></span>
-                                    <span>${data.metadata.llm_provider}</span>
-                                </div>
-                                <div class="metadata-item">
-                                    <span><strong>Confidence:</strong></span>
-                                    <span>${Math.round(data.metadata.confidence * 100)}%</span>
-                                </div>
-                                <div class="metadata-item">
-                                    <span><strong>Query ID:</strong></span>
-                                    <span>#${data.query_id}</span>
-                                </div>
-                                <div class="metadata-item">
-                                    <span><strong>User:</strong></span>
-                                    <span>${currentUser}</span>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-
-                    // Refresh user stats and charts
-                    await loadUserStats(currentUser);
-                    await loadSystemStats();
-                    
-                    console.log(`✅ Analysis completed for ${currentUser}`);
-                } else {
-                    addActivity('error', '❌', 'Analysis Failed', data.error || 'Unknown error occurred', { status: 'Error' });
-                    
-                    resultsDiv.innerHTML = `
-                        <div class="results">
-                            <h3>❌ Analysis Failed</h3>
-                            <p>Sorry, we couldn't analyze your question. Please try again.</p>
-                            <p class="error-details">${data.error}</p>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                console.error('❌ Error analyzing question:', error);
-                addActivity('error', '❌', 'Analysis Error', error.message, { status: 'Error' });
-                
-                resultsDiv.innerHTML = `
-                    <div class="results">
-                        <h3>❌ Error</h3>
-                        <p>An error occurred while analyzing your question.</p>
-                        <p class="error-details">${error.message}</p>
-                    </div>
-                `;
-            }
-        }
-
-        // NEW: Simulate RSS data gathering activities
-        function simulateRSSActivities() {
-            const rssSources = [
-                { name: 'View.com.au Property News', articles: 18, delay: 500 },
-                { name: 'First National Real Estate', articles: 8, delay: 1200 },
-                { name: 'PropertyMe Blog', articles: 6, delay: 1800 },
-                { name: 'Real Estate Talk', articles: 15, delay: 2500 }
-            ];
+            // Refresh user stats and charts
+            await loadUserStats(currentUser);
+            await loadSystemStats();
             
-            rssSources.forEach((source, index) => {
-                setTimeout(() => {
-                    addActivity('connecting', '🔗', `Connecting to ${source.name}`, 'Fetching latest property market data...', { status: 'Connecting' });
-                    
-                    setTimeout(() => {
-                        addActivity('success', '✅', `${source.name} - ${source.articles} articles retrieved`, 'Latest property insights collected successfully', { 
-                            articles: source.articles,
-                            source: source.name
-                        });
-                    }, 300);
-                }, source.delay);
-            });
+            console.log(`✅ Analysis completed for ${currentUser}`);
+        } else {
+            addActivity('error', '❌', 'Analysis Failed', data.error || 'Unknown error occurred', { status: 'Error' });
             
-            // Add LLM processing activity
-            setTimeout(() => {
-                addActivity('processing', '🤖', 'AI Analysis in Progress', 'Claude & Gemini processing property data and generating insights...', { status: 'Processing' });
-            }, 3000);
+            resultsDiv.innerHTML = `
+                <div class="results">
+                    <h3>❌ Analysis Failed</h3>
+                    <p>Sorry, we couldn't analyze your question. Please try again.</p>
+                    <p class="error-details">${data.error}</p>
+                </div>
+            `;
         }
+    } catch (error) {
+        console.error('❌ Error analyzing question:', error);
+        addActivity('error', '❌', 'Analysis Error', error.message, { status: 'Error' });
+        
+        resultsDiv.innerHTML = `
+            <div class="results">
+                <h3>❌ Error</h3>
+                <p>An error occurred while analyzing your question.</p>
+                <p class="error-details">${error.message}</p>
+            </div>
+        `;
+    }
+}
+
 
         // Analyze custom question
         function analyzeCustomQuestion() {
@@ -775,7 +842,6 @@
             console.log('🎉 Australian Property Intelligence V3 Frontend Loaded');
             console.log('🔗 API Base:', API_BASE);
             console.log('👥 Demo Users:', demoUsers.length);
-            addActivity('success', '🎉', 'Frontend Loaded', 'Australian Property Intelligence V3 interface ready', { status: 'Ready' });
         });
 
         // Handle offline/online states
@@ -783,6 +849,7 @@
             console.log('🌐 Back online');
             addActivity('success', '🌐', 'Connection Restored', 'Back online - all features available', { status: 'Online' });
             loadSystemStats();
+            // EventSource automatically attempts to reconnect, so manual initLiveLogStream() call here is not strictly necessary
         });
 
         window.addEventListener('offline', () => {
