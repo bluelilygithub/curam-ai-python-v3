@@ -1,10 +1,12 @@
-# services/property_service.py
-
 import logging
 import time
+import json
+import re # ADDED: Import the regular expression module
+
 from services.llm_service import LLMService
 from services.rss_service import RSSService
-from services.web_search_service import WebSearchService # NEW import
+from services.web_search_service import WebSearchService
+from config import Config # Import Config for GOOGLE_CSE_TOP_N_RESULTS
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +14,7 @@ class PropertyAnalysisService:
     def __init__(self, llm_service: LLMService, rss_service: RSSService = None, web_search_service: WebSearchService = None):
         self.llm_service = llm_service
         self.rss_service = rss_service
-        self.web_search_service = web_search_service # NEW: Inject web search service
+        self.web_search_service = web_search_service
         logger.info(f"PropertyAnalysisService initialized with LLM: {llm_service is not None}, RSS: {rss_service is not None}, WebSearch: {web_search_service is not None}")
 
     async def analyze_property_question(self, question: str) -> dict:
@@ -27,11 +29,11 @@ class PropertyAnalysisService:
         llm_provider = "unknown"
         
         try:
-            # 1. Location Detection (Existing Logic)
+            # 1. Location Detection
             location_info = self._detect_location(question)
             logger.info(f"LOCATION DETECTION FINAL RESULT: {location_info}")
 
-            # 2. Initial Data Gathering: RSS Feeds (Existing Logic)
+            # 2. Initial Data Gathering: RSS Feeds
             rss_context = ""
             if self.rss_service and self.rss_service.is_available:
                 try:
@@ -54,35 +56,39 @@ class PropertyAnalysisService:
             initial_prompt = self._build_initial_llm_prompt(question, location_info, rss_context)
             logger.info("🤖 Initial LLM prompt sent to determine search necessity.")
 
-            initial_llm_response = await self.llm_service.analyze_with_claude(initial_prompt) # Use Claude for initial decision
-            llm_provider = "claude" # Assume Claude for this first step
+            # Using Claude for initial decision-making step
+            initial_llm_response = await self.llm_service.analyze_with_claude(initial_prompt)
+            llm_provider = "claude" 
 
             if not initial_llm_response['success']:
                 raise Exception(initial_llm_response['error'])
 
-            # --- NEW: Check if LLM indicates a need for web search ---
-            # This is a simplified decision-making. In a real agent, LLM would output JSON for tool calls.
-            # For this demo, we'll look for keywords in the initial LLM response or a specific structured output if possible.
-            search_needed = self._check_for_search_necessity(initial_llm_response['answer'])
+            # --- Check if LLM indicates a need for web search ---
             search_results_context = ""
-            if search_needed and self.web_search_service and self.web_search_service.is_available:
-                logger.info(f"🌐 LLM determined web search is needed. Performing search for: '{search_needed['query']}'")
-                search_response = await self.web_search_service.search(search_needed['query'])
-                if search_response['success']:
-                    search_results_context = "\n\nWeb Search Results:\n" + "\n".join([
-                        f"- Title: {item['title']}\n  Snippet: {item['snippet']}\n  Link: {item['link']}"
-                        for item in search_response['results'][:Config.GOOGLE_CSE_TOP_N_RESULTS] # Limit context tokens
-                    ])
-                    logger.info(f"✅ Web search completed with {len(search_response['results'])} results.")
+            search_decision = self._check_for_search_necessity(initial_llm_response['answer'])
+            
+            if search_decision and search_decision.get("action") == "web_search":
+                if self.web_search_service and self.web_search_service.is_available:
+                    logger.info(f"🌐 LLM determined web search is needed. Performing search for: '{search_decision['query']}'")
+                    search_response = await self.web_search_service.search(search_decision['query'])
+                    if search_response['success']:
+                        # Limit the number of search results and length of snippets to manage context window
+                        search_results_context = "\n\nWeb Search Results:\n" + "\n".join([
+                            f"- Title: {item.get('title')}\n  Snippet: {item.get('snippet', '')[:Config.GOOGLE_CSE_SNIPPET_MAX_LENGTH]}...\n  Link: {item.get('link')}"
+                            for item in search_response['results'][:Config.GOOGLE_CSE_TOP_N_RESULTS]
+                        ])
+                        logger.info(f"✅ Web search completed with {len(search_response['results'])} results.")
+                    else:
+                        logger.warning(f"⚠️ Web search failed: {search_response['error']}. Proceeding without search context.")
                 else:
-                    logger.warning(f"⚠️ Web search failed: {search_response['error']}. Proceeding without search context.")
-            else:
-                if search_needed and not (self.web_search_service and self.web_search_service.is_available):
                     logger.warning("⚠️ Web search determined necessary but service is unavailable. Proceeding without search context.")
-            # --- END NEW ---
+            elif search_decision and search_decision.get("action") == "analyze_directly":
+                logger.info(f"LLM decided to analyze directly based on reason: {search_decision.get('reason', 'N/A')}")
+            else:
+                logger.warning("LLM search decision could not be parsed or was invalid. Proceeding without search context.")
 
-            # 4. Final LLM Analysis with All Context (existing logic, modified prompt)
-            # Combine all available context for the final LLM prompt.
+
+            # 4. Final LLM Analysis with All Context
             final_llm_prompt = self._build_final_llm_prompt(question, location_info, rss_context, search_results_context)
             logger.info("🤖 Final LLM prompt sent with all gathered context.")
 
@@ -99,7 +105,7 @@ class PropertyAnalysisService:
 
             final_answer = llm_response['answer']
             success = True
-            confidence = llm_response.get('confidence', 0.90) # Assume higher confidence if all steps successful
+            confidence = llm_response.get('confidence', 0.90) 
 
         except Exception as e:
             logger.error(f"Error in property analysis pipeline: {e}")
@@ -112,18 +118,18 @@ class PropertyAnalysisService:
             "confidence": confidence,
             "question_type": question_type,
             "llm_provider": llm_provider,
-            "claude_result": None, # You can populate these if you want to expose raw LLM results
+            "claude_result": None, 
             "gemini_result": None
         }
 
     def _detect_location(self, question: str) -> dict:
-        # Existing logic for location detection (can be moved to a separate utility if complex)
         location_mapping = {
             'brisbane': {'scope': 'Brisbane', 'keywords': ['brisbane', 'queensland', 'qld', 'gold coast', 'sunshine coast']},
             'sydney': {'scope': 'Sydney', 'keywords': ['sydney', 'nsw', 'new south wales']},
             'melbourne': {'scope': 'Melbourne', 'keywords': ['melbourne', 'victoria', 'vic']},
             'perth': {'scope': 'Perth', 'keywords': ['perth', 'western australia', 'wa']},
             'adelaide': {'scope': 'Adelaide', 'keywords': ['adelaide', 'south australia', 'sa']},
+            'darwin': {'scope': 'Darwin', 'keywords': ['darwin', 'northern territory', 'nt']}, # Added Darwin
         }
         question_lower = question.lower()
         detected_scope = 'National'
@@ -136,28 +142,32 @@ class PropertyAnalysisService:
     def _build_initial_llm_prompt(self, question: str, location_info: dict, rss_context: str) -> str:
         """
         Builds the initial prompt for the LLM to assess question type and search necessity.
+        This prompt guides the LLM to output a structured JSON for tool calling.
         """
         location_scope = location_info.get('scope', 'National')
         
-        # Guide the LLM to identify if it needs a specific factual number, and suggest search.
         prompt = f"""You are an expert Australian property market analyst.
-The user has asked the following question about the {location_scope} property market:
+Your primary goal is to answer the user's question comprehensively and accurately.
+The user's question is about the {location_scope} property market.
 
 User Question: "{question}"
 
-Your task is to first:
-1.  **Determine if this question requires a specific, up-to-date factual number (e.g., an average price, current rental yield, specific market statistic).**
-2.  If it does, suggest a precise search query that could find this information.
-3.  If it does not, proceed with analysis based on general knowledge and provided context.
+First, assess if this question requires a specific, up-to-date factual number (e.g., an average property price, current rental yield, specific market statistic, population, recent sales volume).
+If it does, your **ACTION** must be to perform a `web_search`.
+If it does not (e.g., it's a general trend, analysis, comparison, or opinion), your **ACTION** must be `analyze_directly`.
 
-Context provided:
+**Context provided for your decision:**
 - Location Scope: {location_scope}
-- Relevant RSS News/Trends: {rss_context if rss_context else "No relevant RSS articles found."}
+- Relevant RSS News/Trends (may contain general trends, but unlikely specific numbers):
+{rss_context if rss_context else "No specific relevant RSS articles found to directly answer factual numbers."}
 
-Based on the question and context, please indicate if a web search is required to find a specific number.
-If a search is required, respond ONLY with a JSON object like this:
+**Your response MUST be a JSON object with an "action" key.**
+
+**If "action" is "web_search":**
+- It MUST include a "query" key with a precise search query (e.g., "current median house price Darwin 3 bedroom").
+- Example:
 ```json
 {{
     "action": "web_search",
-    "query": "precise search query for the factual number"
+    "query": "median house price Darwin 3 bedroom house"
 }}
