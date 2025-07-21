@@ -4,8 +4,6 @@ Professional Flask application with PostgreSQL + User Switching
 UPDATED: Clean architecture with user switching functionality
 """
 
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import os
 import sys
 import logging
@@ -15,26 +13,12 @@ import json
 import threading
 from datetime import datetime
 from flask import Flask, request, jsonify, Response, stream_with_context # Ensure Response and stream_with_context are imported
+from flask_cors import CORS # This import was also part of the concatenated line, moved here
 
-# Set up logging FIRST, before using logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__) # Define logger for this module here!
+log_queue = queue.Queue() # This line should end here, without concatenation
 
-# Queue for real-time log messages
-log_queue = queue.Queue()from flask import Flask, request, jsonify, Response, stream_with_context
-from flask_cors import CORS
-import os
-import sys
-import logging
-import time
-import queue
-import json
-import threading
-from datetime import datetime
-
-# --- Live Log Streamer Setup ---
-# Queue for real-time log messages that will be streamed to the frontend
-log_queue = queue.Queue()
 
 class QueueHandler(logging.Handler):
     """
