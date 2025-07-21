@@ -122,8 +122,8 @@ body {
 
 /* Main Content Grid */
 .main-grid {
-    display: grid; /* Explicitly define as grid */
-    grid-template-columns: 1fr 400px; /* 2 columns: main content (fluid) and sidebar (fixed width) */
+    display: grid; 
+    grid-template-columns: 1fr 400px; 
     gap: 25px;
     margin-bottom: 30px;
 }
@@ -136,11 +136,11 @@ body {
 }
 
 .sidebar {
-    display: flex; /* Make sidebar a flex container for its children */
-    flex-direction: column; /* Stack children (user profile, history, activity log) vertically */
+    display: flex; 
+    flex-direction: column; 
     gap: 25px;
-    flex-grow: 1; /* Allow sidebar to grow in height to match main-content */
-    height: auto; /* Ensure height adjusts to content */
+    flex-grow: 1; 
+    height: auto; 
 }
 
 /* User Profile Card */
@@ -149,8 +149,11 @@ body {
     border-radius: 20px;
     padding: 30px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-    text-align: center;
+    text-align: center; /* Default for existing content */
     transition: all 0.3s ease;
+    display: flex; /* NEW: Make it a flex container */
+    flex-direction: column; /* NEW: Stack children vertically */
+    gap: 15px; /* NEW: Space between profile sections */
 }
 
 .user-profile.loading {
@@ -215,13 +218,71 @@ body {
     color: #666;
 }
 
+/* NEW: LLM Usage Details Panel */
+.llm-usage-details {
+    background: rgba(255,255,255,0.95);
+    border-radius: 20px;
+    padding: 25px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+    text-align: center; 
+    margin-top: 15px; /* Space it out from user stats if needed */
+}
+
+.llm-usage-details h4 {
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.usage-meter {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin-bottom: 15px;
+}
+
+.token-count {
+    display: block; 
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #555;
+}
+
+.progress-bar-container {
+    background-color: #e0e0e0;
+    border-radius: 5px;
+    height: 10px;
+    margin-top: 10px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    background-color: #4CAF50; /* Green */
+    height: 100%;
+    width: 0%; 
+    border-radius: 5px;
+    transition: width 0.3s ease-in-out;
+}
+
+.progress-bar.warning {
+    background-color: #ff9800; /* Orange */
+}
+
+.progress-bar.critical {
+    background-color: #f44336; /* Red */
+}
+
+
 /* Query History */
 .query-history {
     background: rgba(255,255,255,0.95);
     border-radius: 20px;
     padding: 25px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-    max-height: 350px; /* Keep a max-height for query history if it gets too long */
+    max-height: 350px; 
     overflow-y: auto;
 }
 
@@ -272,16 +333,16 @@ body {
 }
 
 
-/* NEW: Activity Log Section (now part of sidebar flow) */
+/* NEW: Activity Log Section */
 .activity-log {
     background: rgba(255,255,255,0.95);
     border-radius: 20px;
     padding: 25px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-    max-height: none; /* Allow it to expand vertically */
-    overflow: hidden; /* Hide overflow of the container, inner feed handles scroll */
-    display: flex; /* Make it a flex container to manage its inner feed */
-    flex-direction: column; /* Stack its content (h4 and activity-feed) */
+    max-height: none; 
+    overflow: hidden; 
+    display: flex; 
+    flex-direction: column; 
 }
 
 .activity-log h4 {
@@ -294,12 +355,12 @@ body {
 }
 
 .activity-feed {
-    flex: 1; /* Allows the feed to take up available height in the activity-log */
-    overflow-y: auto; /* Keeps scrollbar only for the log messages */
-    padding-right: 10px; /* Maintain scrollbar spacing */
+    flex: 1; 
+    overflow-y: auto; 
+    padding-right: 10px; 
 }
 
-.log-entry { /* Renamed from .activity-item to .log-entry for consistency with JS */
+.log-entry { 
     padding: 12px 15px;
     margin-bottom: 8px;
     border-radius: 10px;
@@ -342,13 +403,13 @@ body {
     background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
     border-left-color: #f44336;
 }
-.log-entry.debug { /* Added debug style */
+.log-entry.debug { 
     background: linear-gradient(135deg, #f0f4c3 0%, #e6ee9c 100%);
     border-left-color: #afb42b;
 }
 
 
-.log-entry .emoji { /* Use .log-entry .emoji for specific styling */
+.log-entry .emoji { 
     font-size: 1.1rem;
     margin-top: 2px;
     min-width: 20px;
@@ -358,43 +419,43 @@ body {
     flex: 1;
 }
 
-.log-content strong { /* Specific strong for titles */
+.log-content strong { 
     font-weight: 600;
     color: #333;
     margin-bottom: 4px;
     line-height: 1.3;
-    display: block; /* Make strong display block to push p below */
+    display: block; 
 }
 
-.log-content p { /* Message content */
+.log-content p { 
     color: #666;
     font-size: 0.85rem;
     line-height: 1.3;
 }
 
-.log-details { /* Container for timestamp and other details */
+.log-details { 
     color: #999;
     font-size: 0.75rem;
     margin-top: 4px;
     display: flex;
-    flex-direction: column; /* Stack details */
+    flex-direction: column; 
     align-items: flex-end;
     gap: 2px;
 }
 
-.log-details span { /* For timestamp */
+.log-details span { 
     font-weight: 500;
-    white-space: nowrap; /* Prevent timestamp from wrapping */
+    white-space: nowrap; 
 }
-.log-details pre { /* For JSON details */
+.log-details pre { 
     background: rgba(0,0,0,0.05);
     padding: 5px;
     border-radius: 5px;
     font-size: 0.7em;
     white-space: pre-wrap;
     word-break: break-all;
-    max-width: 150px; /* Constrain width if too wide */
-    overflow-x: auto; /* Allow horizontal scroll for long details */
+    max-width: 150px; 
+    overflow-x: auto; 
 }
 
 
@@ -433,7 +494,7 @@ body {
 }
 
 .preset-btn-recent {
-    background: linear-gradient(135deg, #a7e0f0 0%, #76b1f0 100%); /* Lighter blue/cyan */
+    background: linear-gradient(135deg, #a7e0f0 0%, #76b1f0 100%); 
     color: #333;
 }
 .preset-btn-recent:hover {
@@ -441,7 +502,7 @@ body {
 }
 
 .preset-btn-popular {
-    background: linear-gradient(135deg, #f0e0a7 0%, #f0c576 100%); /* Yellow/orange */
+    background: linear-gradient(135deg, #f0e0a7 0%, #f0c576 100%); 
     color: #333;
 }
 .preset-btn-popular:hover {
@@ -449,7 +510,7 @@ body {
 }
 
 .preset-btn-example {
-    background: linear-gradient(135deg, #e0a7f0 0%, #c576f0 100%); /* Purple/pink */
+    background: linear-gradient(135deg, #e0a7f0 0%, #c576f0 100%); 
     color: #333;
 }
 .preset-btn-example:hover {
@@ -468,18 +529,18 @@ body {
 }
 
 .preset-btn-wrapper {
-    position: relative; /* Allows delete button to be positioned relative to this */
-    display: flex; /* Or inline-flex, to keep it from taking full width if not needed */
+    position: relative; 
+    display: flex; 
     align-items: center;
-    gap: 8px; /* Space between button and delete icon */
+    gap: 8px; 
 }
 
 .delete-preset-btn {
-    background: #f44336; /* Red color for delete */
+    background: #f44336; 
     color: white;
     border: none;
-    border-radius: 50%; /* Make it circular */
-    width: 24px; /* Small size */
+    border-radius: 50%; 
+    width: 24px; 
     height: 24px;
     font-size: 1.1em;
     font-weight: bold;
@@ -488,16 +549,15 @@ body {
     align-items: center;
     cursor: pointer;
     transition: background-color 0.2s ease;
-    flex-shrink: 0; /* Prevent it from shrinking */
-    opacity: 0.8; /* Slightly transparent when not hovered */
+    flex-shrink: 0; 
+    opacity: 0.8; 
 }
 
 .delete-preset-btn:hover {
-    background: #d32f2f; /* Darker red on hover */
+    background: #d32f2f; 
     opacity: 1;
 }
 
-/* Optional: Hide delete button until hovered over the wrapper */
 .preset-btn-wrapper .delete-preset-btn {
     opacity: 0;
     visibility: hidden;
@@ -509,7 +569,6 @@ body {
     visibility: visible;
 }
 
-/* Ensure the main preset button has flex-grow to take available space */
 .preset-btn-wrapper .preset-btn {
     flex-grow: 1;
 }
@@ -649,32 +708,30 @@ body {
 /* Responsive Design */
 @media (max-width: 1400px) {
     .main-grid {
-        grid-template-columns: 1fr 380px; /* Adjust sidebar width for smaller screens */
+        grid-template-columns: 1fr 380px; 
     }
-    /* IMPORTANT: The 'display: none;' for .activity-log has been removed from here. */
 }
 
 @media (max-width: 1200px) {
     .main-grid {
-        grid-template-columns: 1fr; /* Stack columns vertically */
+        grid-template-columns: 1fr; 
     }
     
     .sidebar {
-        display: grid; /* Sidebar itself becomes a grid */
-        grid-template-columns: 1fr 1fr; /* User profile and query history side-by-side */
+        display: grid; 
+        grid-template-columns: 1fr 1fr; 
         gap: 25px;
     }
     
     .user-profile,
     .query-history {
-        /* Ensure these are directly affected by sidebar's grid */
     }
 
     .activity-log {
-        display: flex; /* Ensure it's visible and acts as a flex container */
-        grid-column: span 2; /* Span both columns in the stacked layout */
-        max-height: 350px; /* Give it a max-height when it's wide and stacked */
-        overflow-y: auto; /* Ensure it scrolls */
+        display: flex; 
+        grid-column: span 2; 
+        max-height: 350px; 
+        overflow-y: auto; 
     }
 }
 
@@ -699,12 +756,12 @@ body {
     }
     
     .sidebar {
-        grid-template-columns: 1fr; /* Stack sidebar items vertically on very small screens */
+        grid-template-columns: 1fr; 
     }
     
     .activity-log {
-        grid-column: span 1; /* Span single column */
-        max-height: 250px; /* Adjust max height for mobile view */
+        grid-column: span 1; 
+        max-height: 250px; 
     }
     
     .preset-questions {

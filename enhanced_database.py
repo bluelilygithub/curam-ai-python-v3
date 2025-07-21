@@ -2,12 +2,12 @@ import os
 import logging
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, Float, func
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
+# No longer need declarative_base here, as it's now imported from models.py
 from datetime import datetime
 
 # Import Config and models
 from config import Config 
-from models import Base, Query 
+from models import Base, Query # Ensure Base and Query are imported from models.py
 
 logger = logging.getLogger(__name__)
 
@@ -119,13 +119,13 @@ class PropertyDatabase:
         try:
             with self.engine.connect() as conn:
                 # Test basic query
-                result = conn.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
+                result = conn.execute(func.text("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';"))
                 table_count = result.fetchone()[0]
                 logger.info(f"📊 Database Status: {table_count} tables in public schema")
                 
                 # Check if our specific table exists
                 result = conn.execute(
-                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'queries';"
+                    func.text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'queries';")
                 )
                 queries_table_exists = result.fetchone()[0] > 0
                 logger.info(f"📋 Queries table exists: {'✅ Yes' if queries_table_exists else '❌ No'}")
@@ -135,10 +135,12 @@ class PropertyDatabase:
 
     def store_query(self, question: str, answer: str, question_type: str, 
                     processing_time: float, success: bool, location_detected: str, 
-                    llm_provider: str, confidence_score: float, user_id: str) -> int:
+                    llm_provider: str, confidence_score: float, user_id: str,
+                    total_tokens_used: int = 0) -> int: # Added total_tokens_used parameter with default
         """
         Stores a new query and its analysis result in the database.
         Returns the ID of the newly created query.
+        Also stores the total tokens used for the query.
         """
         session = self.Session()
         try:
@@ -152,11 +154,12 @@ class PropertyDatabase:
                 llm_provider=llm_provider,
                 confidence_score=confidence_score,
                 user_id=user_id,
-                created_at=datetime.now()
+                created_at=datetime.now(),
+                total_tokens_used=total_tokens_used # Save the token count
             )
             session.add(new_query)
             session.commit()
-            logger.info(f"💾 Query stored: ID {new_query.id} by user '{user_id}'")
+            logger.info(f"💾 Query stored: ID {new_query.id} by user '{user_id}'. Tokens: {total_tokens_used}")
             return new_query.id
         except Exception as e:
             session.rollback()
@@ -168,7 +171,7 @@ class PropertyDatabase:
     def get_query_history(self, limit: int = 20, user_id: str = None) -> list:
         """
         Retrieves recent query history, optionally filtered by user_id.
-        Returns a list of dictionaries, newest first.
+        Returns a list of dictionaries, newest first, including total_tokens_used.
         """
         session = self.Session()
         try:
@@ -189,7 +192,8 @@ class PropertyDatabase:
                     'created_at': record.created_at.isoformat(),
                     'user_id': record.user_id,
                     'location': record.location_detected,
-                    'llm_provider': record.llm_provider
+                    'llm_provider': record.llm_provider,
+                    'total_tokens_used': record.total_tokens_used # Include tokens in history
                 })
             logger.debug(f"📊 Retrieved {len(history_data)} history records for user '{user_id}'.")
             return history_data
@@ -201,7 +205,7 @@ class PropertyDatabase:
 
     def get_user_stats(self, user_id: str) -> dict:
         """
-        Retrieves statistics for a specific user.
+        Retrieves statistics for a specific user, including total token usage.
         Returns a dictionary with user info, stats, and recent queries.
         """
         session = self.Session()
@@ -213,6 +217,12 @@ class PropertyDatabase:
             ).filter_by(user_id=user_id, success=True).scalar()
             
             avg_processing_time = round(avg_time_result, 2) if avg_time_result is not None else 0.0
+
+            # NEW: Calculate total tokens used by the user across all their queries
+            total_user_tokens = session.query(
+                func.sum(Query.total_tokens_used)
+            ).filter_by(user_id=user_id).scalar()
+            total_user_tokens = int(total_user_tokens) if total_user_tokens is not None else 0
             
             recent_queries = self.get_query_history(limit=5, user_id=user_id)
             user_info = self._get_demo_user_info(user_id)
@@ -224,6 +234,7 @@ class PropertyDatabase:
                     'avg_processing_time': avg_processing_time,
                     'successful_queries': session.query(Query).filter_by(user_id=user_id, success=True).count(),
                     'failed_queries': session.query(Query).filter_by(user_id=user_id, success=False).count(),
+                    'total_tokens_used': total_user_tokens, # Add total tokens used by user
                 },
                 'recent_queries': recent_queries
             }
@@ -237,6 +248,7 @@ class PropertyDatabase:
                     'avg_processing_time': 0.0,
                     'successful_queries': 0,
                     'failed_queries': 0,
+                    'total_tokens_used': 0, # Return 0 on error
                     'error': str(e)
                 },
                 'recent_queries': []

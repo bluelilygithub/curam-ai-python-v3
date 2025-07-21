@@ -1,12 +1,12 @@
 import logging
 import time
 import json
-import re # Ensure this is imported
+import re 
 
 from services.llm_service import LLMService
 from services.rss_service import RSSService
 from services.web_search_service import WebSearchService
-from config import Config # Ensure Config is imported for GOOGLE_CSE_TOP_N_RESULTS, etc.
+from config import Config 
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +21,14 @@ class PropertyAnalysisService:
         """
         Analyzes a property question, potentially using RSS data and web search,
         and generates a comprehensive answer using LLMs.
+        Also tracks and returns total token usage for the entire analysis process.
         """
         final_answer = "An error occurred during analysis."
         success = False
         confidence = 0.85
         question_type = "custom"
         llm_provider = "unknown"
+        total_tokens_accumulated = 0 # NEW: Initialize token counter
         
         try:
             # 1. Location Detection
@@ -55,19 +57,23 @@ class PropertyAnalysisService:
             initial_prompt = self._build_initial_llm_prompt(question, location_info, rss_context)
             logger.info("🤖 Initial LLM prompt sent to determine search necessity.")
 
-            # Try Claude first, with fallback to Gemini
-            initial_llm_response = await self.llm_service.analyze_with_claude(initial_prompt)
-            llm_provider = "claude"
-
-            # Add safety check for None response
-            if not initial_llm_response or not isinstance(initial_llm_response, dict):
-                logger.warning("Claude service unavailable, trying Gemini for initial analysis...")
-                initial_llm_response = await self.llm_service.analyze_with_gemini(initial_prompt)
-                llm_provider = "gemini"
-
-            # Check if we have a valid response
+            initial_llm_response = None
+            if self.llm_service.claude_is_available:
+                initial_llm_response = await self.llm_service.analyze_with_claude(initial_prompt)
+                llm_provider = "claude"
+            
             if not initial_llm_response or not initial_llm_response.get('success'):
-                error_msg = initial_llm_response.get('error', 'LLM service unavailable') if initial_llm_response else 'No LLM service available'
+                logger.warning("Claude initial analysis failed or unavailable, trying Gemini for initial analysis...")
+                initial_llm_response = await self.llm_service.analyze_with_gemini(initial_prompt)
+                llm_provider = "gemini" # Update provider if Gemini is used
+
+            # Add initial LLM call tokens to accumulator
+            if initial_llm_response and "tokens_used" in initial_llm_response:
+                total_tokens_accumulated += initial_llm_response["tokens_used"]
+
+            # Check if we have a valid response from either LLM
+            if not initial_llm_response or not initial_llm_response.get('success'):
+                error_msg = initial_llm_response.get('error', 'LLM service unavailable for initial assessment') if initial_llm_response else 'No LLM service available for initial assessment'
                 raise Exception(error_msg)
 
             search_results_context = ""
@@ -96,22 +102,26 @@ class PropertyAnalysisService:
             final_llm_prompt = self._build_final_llm_prompt(question, location_info, rss_context, search_results_context)
             logger.info("🤖 Final LLM prompt sent with all gathered context.")
 
-            # Try Gemini first if available, then Claude as fallback
-            if self.llm_service.gemini_is_available:
+            llm_response = None
+            if self.llm_service.gemini_is_available: # Try Gemini first for final analysis
                 llm_response = await self.llm_service.analyze_with_gemini(final_llm_prompt)
                 llm_provider = "gemini"
-            elif self.llm_service.claude_is_available:
+            elif self.llm_service.claude_is_available: # Fallback to Claude for final analysis
                 llm_response = await self.llm_service.analyze_with_claude(final_llm_prompt)
                 llm_provider = "claude"
             else:
-                raise Exception("No LLM services are available")
+                raise Exception("No LLM services are available for final analysis.")
+
+            # Add final LLM call tokens to accumulator
+            if llm_response and "tokens_used" in llm_response:
+                total_tokens_accumulated += llm_response["tokens_used"]
 
             # Add safety check for final response
             if not llm_response or not isinstance(llm_response, dict):
-                raise Exception("LLM service returned invalid response")
+                raise Exception("LLM service returned invalid response for final analysis.")
 
             if not llm_response.get('success'):
-                error_msg = llm_response.get('error', 'LLM analysis failed')
+                error_msg = llm_response.get('error', 'LLM final analysis failed')
                 raise Exception(error_msg)
 
             final_answer = llm_response['answer']
@@ -129,8 +139,9 @@ class PropertyAnalysisService:
             "confidence": confidence,
             "question_type": question_type,
             "llm_provider": llm_provider,
-            "claude_result": None, 
-            "gemini_result": None
+            "claude_result": None, # These are no longer detailed, just the final answer
+            "gemini_result": None, # These are no longer detailed, just the final answer
+            "total_tokens_used": total_tokens_accumulated # NEW: Return accumulated tokens
         }
 
     def _detect_location(self, question: str) -> dict:
@@ -229,12 +240,10 @@ Provide a well-structured analysis that directly answers the user's question abo
         Returns a dictionary with the action and additional parameters.
         """
         try:
-            # Try to parse as JSON
             if llm_response.strip().startswith('{') and llm_response.strip().endswith('}'):
                 decision = json.loads(llm_response)
                 return decision
             
-            # Fallback: look for action keywords in text
             if 'web_search' in llm_response.lower():
                 return {"action": "web_search", "query": "Australian property market trends"}
             else:

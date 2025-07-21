@@ -17,73 +17,48 @@ from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 
 # --- Global Queue for Live Log Streamer ---
-# This queue is used by the custom logging handler to push log records
-# which are then streamed to the frontend via Server-Sent Events (SSE).
 log_queue = queue.Queue()
 
 # --- Custom Logging Handler for Live Stream ---
 class QueueHandler(logging.Handler):
-    """
-    A custom logging handler that puts log records into a global queue.
-    These records can then be picked up by an SSE endpoint to stream to the frontend.
-    """
     def emit(self, record):
         try:
-            # Format the log record into a dictionary for JSON serialization
             log_entry = {
                 "timestamp": datetime.fromtimestamp(record.created).strftime('%Y-%m-%d %H:%M:%S'),
                 "level": record.levelname,
                 "message": self.format(record),
-                "name": record.name # Name of the logger (e.g., __main__, services.llm_service)
+                "name": record.name 
             }
-            # Put the JSON string into the thread-safe queue
             log_queue.put(json.dumps(log_entry))
         except Exception:
-            # Handle errors that occur within the logger itself to prevent infinite loops
             self.handleError(record)
 
 # --- Application-wide Logging Setup ---
-# Configure basic logging to console (for local dev/Railway logs)
-# AND add the custom QueueHandler to the root logger.
-logging.basicConfig(level=logging.INFO) # Set default logging level to INFO
-logger = logging.getLogger(__name__) # Get a logger instance for this module (app.py)
-logging.getLogger().addHandler(QueueHandler()) # Attach the custom handler to the root logger
+logging.basicConfig(level=logging.INFO) 
+logger = logging.getLogger(__name__) 
+logging.getLogger().addHandler(QueueHandler()) 
 
-# Inform that the live log stream handler is ready
 logger.info("✅ Live log stream handler initialized and attached to root logger.")
 
 
-# --- Import professional services and Config (ensure these modules are correctly structured) ---
-# These imports should be placed after basic logging setup but before Flask app initialization
-# to ensure 'logger' and 'Config' are available when services are initialized.
+# --- Import professional services and Config ---
 from config import Config
-from services import LLMService, PropertyAnalysisService
-from enhanced_database import PropertyDatabase # Using enhanced_database.py
-from services.web_search_service import WebSearchService # NEW: Import WebSearchService
+from services import LLMService, PropertyAnalysisService 
+from enhanced_database import PropertyDatabase 
+from services.web_search_service import WebSearchService 
 from utils import HealthChecker
-# Note: services.rss_service.RSSService is imported directly in initialize_services()
 
-# --- Flask Application Instance Initialization ---
 app = Flask(__name__)
 
-# --- Configure Cross-Origin Resource Sharing (CORS) ---
-# This allows your frontend (e.g., curam-ai.com.au) to make requests to this backend API.
 CORS(app, origins=Config.CORS_ORIGINS)
 
 # --- Backend Services Initialization Function ---
 def initialize_services():
-    """Initializes all custom backend services (Database, LLM, RSS, PropertyAnalysis, WebSearch, HealthChecker)
-    with proper error handling and logging their status.
-    """
     services = {}
     
-    # Log the configured status from config.py
     Config.log_config_status()
-    
-    # NEW: Validate Config attributes directly
     Config.validate_config()
 
-    # Initialize Database Service (using PostgreSQL with SQLAlchemy)
     try:
         services['database'] = PropertyDatabase()
         logger.info("✅ PostgreSQL database service initialized")
@@ -91,7 +66,6 @@ def initialize_services():
         logger.error(f"❌ Database initialization failed: {e}")
         services['database'] = None
     
-    # Initialize LLM Service (integrates Claude and Gemini)
     if Config.CLAUDE_ENABLED or Config.GEMINI_ENABLED:
         try:
             services['llm'] = LLMService()
@@ -103,21 +77,19 @@ def initialize_services():
         logger.warning("⚠️ LLM Service skipped: No Claude or Gemini API keys configured.")
         services['llm'] = None
 
-    # Initialize RSS Service (for Australian Property Data)
     try:
-        from services.rss_service import RSSService # Imported here to avoid circular dependencies if RSSService imports app
+        from services.rss_service import RSSService 
         services['rss'] = RSSService()
         logger.info("✅ RSS service initialized")
     except Exception as e:
         logger.error(f"❌ RSS service initialization failed: {e}")
         services['rss'] = None
 
-    # Initialize Web Search Service
     if Config.GOOGLE_CSE_ENABLED:
         try:
             services['web_search'] = WebSearchService()
             logger.info("✅ Web Search service initialized.")
-            if not services['web_search'].is_available: # Check availability after init for more granular logging
+            if not services['web_search'].is_available: 
                 logger.warning("⚠️ Web Search service is not fully available due to missing configuration (API key/CX).")
         except Exception as e:
             logger.error(f"❌ Web Search service initialization failed: {e}")
@@ -126,11 +98,10 @@ def initialize_services():
         logger.warning("⚠️ Web Search service skipped: Google CSE API keys not configured.")
         services['web_search'] = None
     
-    # Initialize Property Analysis Service (orchestrates LLM, RSS, and now Web Search)
-    # This service depends on the LLM service being successfully initialized.
     if services['llm']:
         try:
-            services['property'] = PropertyAnalysisService(services['llm'], services['rss'], services['web_search']) # Pass web_search_service
+            # Pass LLMService, RSSService, and WebSearchService instances to PropertyAnalysisService
+            services['property'] = PropertyAnalysisService(services['llm'], services['rss'], services['web_search']) 
             logger.info("✅ Property analysis service initialized")
         except Exception as e:
             logger.error(f"❌ Property service initialization failed: {e}")
@@ -139,7 +110,6 @@ def initialize_services():
         logger.warning("⚠️ Property Analysis service skipped: LLM service not available.")
         services['property'] = None
     
-    # Initialize Health Checker Service (monitors the status of all other services)
     try:
         services['health'] = HealthChecker(services)
         logger.info("✅ Health checker initialized")
@@ -147,7 +117,6 @@ def initialize_services():
         logger.error(f"❌ Health checker initialization failed: {e}")
         services['health'] = None
     
-    # Log summary of all successfully initialized services
     available_services = [name for name, service in services.items() if service is not None]
     logger.info(f"🚀 All core services initialized: {', '.join(available_services)}")
     
@@ -171,16 +140,14 @@ def analyze_llm_performance(recent_queries):
                 'success_rates': {'overall': 100, 'claude': 100, 'gemini': 100}
             }
         
-        # Extract response times for the line chart (last 10 queries)
         response_times = []
-        for query in recent_queries[-10:]: # Limit to last 10 for dashboard display
+        for query in recent_queries[-10:]: 
             response_times.append({
                 'query_id': query.get('id', 0),
                 'processing_time': query.get('processing_time', 0),
                 'timestamp': query.get('created_at', '')
             })
         
-        # Analyze performance per LLM provider (Claude vs. Gemini)
         claude_queries = [q for q in recent_queries if q.get('llm_provider') == 'claude']
         gemini_queries = [q for q in recent_queries if q.get('llm_provider') == 'gemini']
         
@@ -197,13 +164,11 @@ def analyze_llm_performance(recent_queries):
             }
         }
         
-        # Location breakdown by detected location
         location_breakdown = {}
         for query in recent_queries:
             location = query.get('location_detected', 'National')
             location_breakdown[location] = location_breakdown.get(location, 0) + 1
         
-        # Calculate overall success rates
         successful_queries = sum(1 for q in recent_queries if q.get('success', True))
         overall_success_rate = (successful_queries / len(recent_queries) * 100) if recent_queries else 100
         
@@ -222,7 +187,7 @@ def analyze_llm_performance(recent_queries):
         logger.error(f"LLM performance analysis failed: {e}")
         return {
             'error': str(e),
-            'response_times': [], # Return empty lists/default values on error
+            'response_times': [], 
             'provider_performance': {
                 'claude': {'avg_response_time': 0, 'success_rate': 100, 'total_queries': 0}, 
                 'gemini': {'avg_response_time': 0, 'success_rate': 100, 'total_queries': 0}
@@ -259,7 +224,6 @@ def clear_activity_log():
     This ensures users only see logs relevant to their current analysis.
     """
     global log_queue
-    # Clear the queue by getting all existing items
     cleared_count = 0
     try:
         while not log_queue.empty():
@@ -268,7 +232,6 @@ def clear_activity_log():
     except queue.Empty:
         pass
     
-    # Send a clear signal to frontend
     clear_signal = {
         "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         "level": "SYSTEM",
@@ -283,7 +246,6 @@ def clear_activity_log():
 
 # ================================
 # MAIN API ROUTES
-# These are the primary endpoints for the frontend application.
 # ================================
 
 @app.route('/')
@@ -304,7 +266,8 @@ def api_info():
             'Enhanced Performance Monitoring',
             'Professional Error Handling',
             'Live Log Streaming (SSE)',
-            'Web Search Integration for Factual Lookups' # Added this feature
+            'Web Search Integration for Factual Lookups',
+            'LLM Token Usage Tracking & Limits' # NEW FEATURE
         ],
         'services': services['health'].get_service_status() if services['health'] else {},
         'api_endpoints': { # List all available API endpoints for clarity
@@ -344,47 +307,33 @@ def stream_logs():
     """
     Server-Sent Events (SSE) endpoint to stream real-time log messages from the backend
     to connected frontend clients. This provides live updates for the activity log.
-    Uses a comment-only line (':keep-alive\\n\\n') for keep-alive messages to prevent
-    connection timeouts from intermediate proxies/load balancers.
     """
     def generate():
         last_activity_time = time.time()
         while True:
             try:
-                # Attempt to get a log message from the queue within a short timeout.
-                # A timeout prevents the generator from blocking indefinitely if no new logs arrive.
-                log_message = log_queue.get(timeout=0.5) # Poll queue every 0.5 seconds
-                yield f"data: {log_message}\n\n" # Send the actual log message as SSE data
-                last_activity_time = time.time() # Reset activity timer
+                log_message = log_queue.get(timeout=0.5) 
+                yield f"data: {log_message}\n\n" 
+                last_activity_time = time.time() 
             except queue.Empty:
-                # If the queue is empty (no new logs), send a keep-alive comment.
-                # This signals to proxies/load balancers that the connection is still active.
-                if time.time() - last_activity_time > 15: # Send keep-alive every 15 seconds
-                    yield ":keep-alive\n\n" # A comment line is usually ignored by SSE clients but keeps connection alive
-                    last_activity_time = time.time() # Reset activity timer for keep-alives
+                if time.time() - last_activity_time > 15: 
+                    yield ":keep-alive\n\n" 
+                    last_activity_time = time.time() 
             except Exception as e:
-                # Log any errors that occur within this generator itself
                 logger.error(f"Error in log stream generator: {e}")
-                # Optionally, also send an error message to the client through the stream
                 yield f"data: {json.dumps({'level': 'ERROR', 'message': f'Server stream error in SSE: {e}'})}\n\n"
-                time.sleep(1) # Pause briefly after an error before trying again
+                time.sleep(1) 
             
-            # A very small delay to prevent busy-waiting and high CPU usage,
-            # ensuring other Flask requests can be processed.
-            time.sleep(0.01) # Yield CPU for 10 milliseconds
+            time.sleep(0.01) 
 
-
-    # Return the Flask Response object with the correct SSE mimetype and headers.
     response = Response(stream_with_context(generate()), mimetype="text/event-stream")
-    # Add crucial headers for SSE to prevent caching and buffering by proxies.
-    response.headers["Cache-Control"] = "no-cache" # Prevent caching of the stream
-    response.headers["X-Accel-Buffering"] = "no" # Specific for Nginx-like proxies; tells it not to buffer
-    response.headers["Connection"] = "keep-alive" # Ensure the connection stays open
+    response.headers["Cache-Control"] = "no-cache" 
+    response.headers["X-Accel-Buffering"] = "no" 
+    response.headers["Connection"] = "keep-alive" 
     return response
 
 # ================================
 # USER SWITCHING API ROUTES
-# These endpoints manage demo user data and associated statistics/history.
 # ================================
 
 @app.route('/api/users', methods=['GET'])
@@ -415,7 +364,10 @@ def get_demo_users():
 
 @app.route('/api/users/<user_id>/stats', methods=['GET'])
 def get_user_statistics(user_id: str):
-    """Retrieves comprehensive usage statistics for a specific user ID."""
+    """
+    Retrieves comprehensive usage statistics for a specific user ID,
+    including total tokens used and the session limit.
+    """
     if not services['database']:
         return jsonify({
             'success': False,
@@ -423,18 +375,21 @@ def get_user_statistics(user_id: str):
         }), 500
     
     try:
-        stats = services['database'].get_user_stats(user_id)
+        stats_data = services['database'].get_user_stats(user_id)
         
-        if not stats: # Check if get_user_stats explicitly returned None (though it should return a dict now)
+        if not stats_data: 
             logger.warning(f"Stats for user '{user_id}' not found or database error. Returning 404.")
             return jsonify({
                 'success': False,
                 'error': f"User '{user_id}' not found or no stats available."
-            }), 404 # 404 Not Found if user stats don't exist
+            }), 404 
             
+        # Add the global session token limit from Config to the stats data
+        stats_data['stats']['max_session_tokens'] = Config.MAX_TOKENS_PER_SESSION 
+
         return jsonify({
             'success': True,
-            'data': stats,
+            'data': stats_data,
             'timestamp': datetime.now().isoformat()
         })
         
@@ -457,8 +412,7 @@ def get_user_history(user_id: str):
     try:
         limit = request.args.get('limit', 20, type=int)
         
-        # Validate and constrain the limit parameter
-        if not (1 <= limit <= 100): # Allow between 1 and 100 queries
+        if not (1 <= limit <= 100): 
             logger.warning(f"Invalid history limit {limit} requested for user {user_id}. Defaulting to 20.")
             limit = 20
         
@@ -482,15 +436,14 @@ def get_user_history(user_id: str):
 
 # ================================
 # PROPERTY ANALYSIS ROUTES
-# These endpoints handle the core property analysis functionality.
 # ================================
 
 @app.route('/api/property/analyze', methods=['POST'])
 async def analyze_property_question():
     """
-    DEBUG VERSION: Analyzes a user's property question with extensive logging
-    to identify where the log clearing and source attribution issues are.
+    Analyzes a user's property question with token usage tracking and session limits.
     """
+    user_id = 'anonymous' 
     try:
         data = request.get_json()
         if not data:
@@ -508,23 +461,33 @@ async def analyze_property_question():
                 'error': 'Question is required.'
             }), 400
         
-        if not services['property']:
+        if not services['property'] or not services['database']:
             return jsonify({
                 'success': False,
-                'error': 'Property analysis service not available.'
+                'error': 'Required services (Property Analysis or Database) not available.'
             }), 500
+
+        # --- NEW: TOKEN USAGE LIMIT CHECK (PER SESSION) ---
+        user_stats_before_query = services['database'].get_user_stats(user_id)
+        current_session_tokens = user_stats_before_query.get('stats', {}).get('total_tokens_used', 0)
         
-        # DEBUG: Log before clearing
+        if current_session_tokens >= Config.MAX_TOKENS_PER_SESSION:
+            logger.warning(f"❌ User '{user_id}' reached session token limit ({current_session_tokens}/{Config.MAX_TOKENS_PER_SESSION}).")
+            return jsonify({
+                'success': False,
+                'error': f"You have reached your session's token limit ({Config.MAX_TOKENS_PER_SESSION} tokens). Please start a new session or contact support.",
+                'current_session_tokens': current_session_tokens,
+                'max_session_tokens': Config.MAX_TOKENS_PER_SESSION
+            }), 429 
+        
         logger.info(f"🔍 DEBUG: About to clear activity log for user '{user_id}'")
         
-        # ✨ CLEAR ACTIVITY LOG FOR NEW QUESTION
         try:
             clear_activity_log()
             logger.info(f"✅ DEBUG: Activity log cleared successfully for user '{user_id}'")
         except Exception as e:
             logger.error(f"❌ DEBUG: Failed to clear activity log: {e}")
         
-        # DEBUG: Check web search service status
         if services.get('web_search'):
             logger.info(f"🌐 DEBUG: Web search service available: {services['web_search'].is_available}")
         else:
@@ -533,15 +496,14 @@ async def analyze_property_question():
         logger.info(f"🔍 Processing property question for user '{user_id}': '{question[:70]}{'...' if len(question) > 70 else ''}'")
         start_time = time.time()
         
-        # Use professional property analysis service
+        # Call property analysis service; it now returns 'total_tokens_used'
         result = await services['property'].analyze_property_question(question)
         processing_time = time.time() - start_time
         
-        # DEBUG: Log the result structure
-        logger.info(f"🔍 DEBUG: Analysis result keys: {list(result.keys())}")
-        logger.info(f"🔍 DEBUG: Sources in result: {result.get('sources', 'NO SOURCES KEY')}")
-        
-        # Determine location and LLM provider from the result
+        # --- NEW: CAPTURE TOTAL TOKENS USED FROM RESULT ---
+        total_tokens_for_this_query = result.get('total_tokens_used', 0)
+        logger.info(f"📊 Total tokens for this query: {total_tokens_for_this_query}")
+
         location_detected = detect_location_from_question(question)
         llm_provider = determine_llm_provider(result)
         
@@ -557,13 +519,33 @@ async def analyze_property_question():
                     location_detected=location_detected,
                     llm_provider=llm_provider,
                     confidence_score=result.get('confidence', 0.85),
-                    user_id=user_id
+                    user_id=user_id,
+                    total_tokens_used=total_tokens_for_this_query # NEW: Pass token count to store_query
                 )
-                logger.info(f"💾 Query stored successfully with ID: {query_id} for user: '{user_id}'.")
+                logger.info(f"💾 Query stored successfully with ID: {query_id} for user: '{user_id}'. Tokens: {total_tokens_for_this_query}")
+
+                # After storing, re-fetch user stats to get updated session token count
+                updated_user_stats = services['database'].get_user_stats(user_id)
+                updated_session_total_tokens = updated_user_stats.get('stats', {}).get('total_tokens_used', 0)
+
+                # --- NEW: PUSH TOKEN USAGE TO SSE FOR REAL-TIME DISPLAY ---
+                token_update_signal = {
+                    "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    "level": "INFO",
+                    "message": "📊 Token Usage Update",
+                    "name": "system",
+                    "action": "token_update", # Special action for frontend
+                    "current_query_tokens": total_tokens_for_this_query,
+                    "session_total_tokens": updated_session_total_tokens,
+                    "max_session_tokens": Config.MAX_TOKENS_PER_SESSION,
+                    "user_id": user_id
+                }
+                log_queue.put(json.dumps(token_update_signal))
+                logger.info(f"📊 SSE: Sent token update for user {user_id}. Query: {total_tokens_for_this_query}, Session: {updated_session_total_tokens}")
+
             except Exception as e:
-                logger.error(f"❌ Failed to store query for user '{user_id}': {e}")
+                logger.error(f"❌ Failed to store query or update token stats for user '{user_id}': {e}")
         
-        # DEBUG: Check if sources exist before building response
         sources_data = result.get('sources', {})
         logger.info(f"🔍 DEBUG: Building response with sources: {sources_data}")
         
@@ -575,7 +557,8 @@ async def analyze_property_question():
             'query_id': query_id,
             'user_id': user_id,
             'sources': sources_data,
-            'debug_info': {  # DEBUG: Add debug info to response
+            'total_tokens_used': total_tokens_for_this_query, # NEW: Include token count in API response for consistency
+            'debug_info': { 
                 'web_search_available': services.get('web_search') is not None,
                 'web_search_configured': services.get('web_search').is_available if services.get('web_search') else False,
                 'result_keys': list(result.keys()),
@@ -608,8 +591,6 @@ async def analyze_property_question():
         }), 500
 
 
-
-
 @app.route('/api/property/questions', methods=['GET'])
 def get_property_questions():
     """
@@ -629,7 +610,7 @@ def get_property_questions():
                 for query_item in recent_user_queries:
                     questions.append({
                         'question': query_item['question'],
-                        'type': 'recent_user', # Blue - recent user questions
+                        'type': 'recent_user', 
                         'user_specific': True,
                         'query_id': query_item['id'],
                         'count': 1
@@ -640,11 +621,10 @@ def get_property_questions():
                 if len(questions) < 3:
                     user_popular_queries = services['database'].get_popular_questions(limit=3, user_id=user_id)
                     for item in user_popular_queries:
-                        # Avoid duplicates
                         if not any(q['question'] == item['question'] for q in questions):
                             questions.append({
                                 'question': item['question'],
-                                'type': 'popular_user', # Green - user's popular questions
+                                'type': 'popular_user', 
                                 'user_specific': True,
                                 'query_id': item['id'],
                                 'count': item['count']
@@ -660,8 +640,8 @@ def get_property_questions():
             for question_text in default_questions:
                 questions.append({
                     'question': question_text,
-                    'type': 'example', # Gray - default examples
-                    'user_specific': True, # Now user-specific
+                    'type': 'example', 
+                    'user_specific': True, 
                     'query_id': None,
                     'count': 0
                 })
@@ -672,7 +652,7 @@ def get_property_questions():
             'questions': questions,
             'user_id': user_id,
             'total_count': len(questions),
-            'personalization': 'user_specific', # Indicate this is personalized
+            'personalization': 'user_specific', 
             'timestamp': datetime.now().isoformat()
         })
         
@@ -695,10 +675,9 @@ def get_property_history():
     
     try:
         limit = request.args.get('limit', 50, type=int)
-        user_id = request.args.get('user_id')  # Optional user filtering
-        
-        # Validate and constrain the limit parameter
-        if not (1 <= limit <= 1000): # Allow between 1 and 1000 queries
+        user_id = request.args.get('user_id')  
+
+        if not (1 <= limit <= 1000): 
             logger.warning(f"Invalid history limit {limit} requested. Defaulting to 50.")
             limit = 50
         
@@ -730,7 +709,6 @@ def delete_query_by_id(query_id: int):
         }), 500
     
     try:
-        # Attempt to delete the query using the database service
         success = services['database'].delete_query(query_id)
         
         if success:
@@ -738,19 +716,19 @@ def delete_query_by_id(query_id: int):
             return jsonify({
                 'success': True,
                 'message': f"Query {query_id} deleted."
-            }), 200 # HTTP 200 OK for successful deletion
+            }), 200 
         else:
             logger.warning(f"⚠️ Query with ID {query_id} not found or could not be deleted.")
             return jsonify({
                 'success': False,
                 'error': f"Query with ID {query_id} not found or could not be deleted."
-            }), 404 # HTTP 404 Not Found if the query doesn't exist
+            }), 404 
     except Exception as e:
         logger.error(f"❌ Error deleting query {query_id}: {e}")
         return jsonify({
             'success': False,
             'error': f"Server error while deleting query: {str(e)}"
-        }), 500 # HTTP 500 for internal server errors during deletion
+        }), 500 
 
 @app.route('/api/property/stats', methods=['GET'])
 def get_property_stats():
@@ -765,16 +743,13 @@ def get_property_stats():
             }
         }
         
-        # Get enhanced database statistics and LLM performance data
         if services['database']:
             try:
                 db_stats = services['database'].get_database_stats()
                 stats['database'] = db_stats
                 
-                # Get recent queries to feed into LLM performance analysis function
-                recent_queries = services['database'].get_query_history(30) # Fetch up to 30 recent queries
+                recent_queries = services['database'].get_query_history(30) 
                 
-                # Analyze LLM performance using the utility function
                 llm_performance = analyze_llm_performance(recent_queries)
                 stats['llm_performance'] = llm_performance
                 
@@ -786,7 +761,6 @@ def get_property_stats():
             stats['database'] = {'status': 'not_available'}
             stats['llm_performance'] = {'status': 'not_available'}
         
-        # Get LLM provider health status
         if services['llm']:
             try:
                 llm_health = services['llm'].get_health_status()
@@ -795,7 +769,6 @@ def get_property_stats():
                 logger.error(f"Failed to retrieve LLM provider health: {e}")
                 stats['llm_providers'] = {'error': str(e)}
         
-        # Get RSS service status
         if services['rss']:
             try:
                 rss_health = services['rss'].get_health_status()
@@ -804,7 +777,6 @@ def get_property_stats():
                 logger.error(f"Failed to retrieve RSS service status: {e}")
                 stats['rss_status'] = {'error': str(e)}
         
-        # Get Web Search service status
         if services['web_search']:
             try:
                 web_search_health = services['web_search'].get_health_status()
@@ -859,7 +831,6 @@ def debug_queries():
         return {"error": "Database not available"}
     
     try:
-        # Get all queries with user info
         all_queries = services['database'].get_query_history(limit=50, user_id=None)
         
         user_breakdown = {}
@@ -871,7 +842,8 @@ def debug_queries():
                 'id': query['id'],
                 'question': query['question'][:50] + '...',
                 'created_at': query['created_at'],
-                'llm_provider': query.get('llm_provider', 'unknown')
+                'llm_provider': query.get('llm_provider', 'unknown'),
+                'total_tokens_used': query.get('total_tokens_used', 0) # Include token usage in debug
             })
         
         return {
@@ -885,13 +857,11 @@ def debug_queries():
 
 # ================================
 # UTILITY FUNCTIONS
-# These functions support various API routes.
 # ================================
 
 def detect_location_from_question(question: str) -> str:
     """
     Detects a specific Australian city or 'National' scope based on keywords in the question.
-    This is used for location-aware processing and logging.
     """
     if not question:
         return 'National'
@@ -920,11 +890,9 @@ def determine_llm_provider(result: dict) -> str:
     if not result or not isinstance(result, dict):
         return 'unknown'
     
-    # Check the llm_provider field first (this is what your property service returns)
     if 'llm_provider' in result:
         return result['llm_provider']
     
-    # Fallback to checking nested results
     if result.get('claude_result', {}).get('success', False):
         return 'claude'
     elif result.get('gemini_result', {}).get('success', False):
@@ -934,7 +902,6 @@ def determine_llm_provider(result: dict) -> str:
 
 # ================================
 # GLOBAL ERROR HANDLERS
-# These provide consistent JSON error responses for common HTTP status codes.
 # ================================
 
 @app.errorhandler(400)
@@ -953,7 +920,7 @@ def not_found_error_handler(error):
     return jsonify({
         'success': False,
         'error': 'Endpoint not found. Please check the URL.',
-        'available_endpoints': [ # List available endpoints for debugging
+        'available_endpoints': [ 
             'GET /',
             'GET /health',
             'GET /stream_logs',
@@ -965,7 +932,7 @@ def not_found_error_handler(error):
             'GET /api/property/history',
             'DELETE /api/property/history/{query_id}',
             'GET /api/property/stats',
-            'GET /debug/queries'  # Added debug endpoint
+            'GET /debug/queries'  
         ],
         'details': str(error),
         'timestamp': datetime.now().isoformat()
@@ -974,7 +941,7 @@ def not_found_error_handler(error):
 @app.errorhandler(500)
 def internal_server_error_handler(error):
     """Handles HTTP 500 Internal Server Errors."""
-    logger.error(f"An unhandled internal server error occurred: {error}", exc_info=True) # Log full traceback
+    logger.error(f"An unhandled internal server error occurred: {error}", exc_info=True) 
     return jsonify({
         'success': False,
         'error': 'Internal server error. An unexpected condition was encountered.',
@@ -983,12 +950,11 @@ def internal_server_error_handler(error):
     }), 500
 
 
-
 @app.route('/debug/google-cse')
 def debug_google_cse():
     """Debug Google CSE configuration"""
-    api_key = os.getenv('GOOGLE_CSE_API_KEY')
-    cx = os.getenv('GOOGLE_CSE_CX')
+    api_key = os.getenv('Google Search_API_KEY')
+    cx = os.getenv('Google Search_CX')
     
     return jsonify({
         'api_key_exists': bool(api_key),
@@ -1005,32 +971,21 @@ def debug_google_cse():
     })
 
 
-
 # ================================
 # APPLICATION ENTRY POINT
-# This block runs the Flask app when the script is executed directly.
-# For production deployments (like Railway using Gunicorn), this block is usually skipped.
 # ================================
 
 if __name__ == '__main__':
-    # Get port and debug mode from environment variables
     port = int(os.environ.get('PORT', 5000))
     debug_mode = os.environ.get('FLASK_ENV') == 'development'
     
-    # Log application startup information
     logger.info(f"🚀 Starting Australian Property Intelligence API V3.0")
     logger.info(f"📡 Port: {port}")
     logger.info(f"🔧 Debug Mode: {debug_mode}")
     logger.info(f"🗄️ Database: PostgreSQL + SQLAlchemy")
     logger.info(f"👥 User Switching: Enabled")
     
-    # Run the Flask development server if in debug mode.
-    # In production (e.g., on Railway with Gunicorn), app.run() is NOT called directly.
-    # Gunicorn imports the 'app' object and serves it.
     if debug_mode:
         app.run(host='0.0.0.0', port=port, debug=True)
     else:
-        # In a production environment, Gunicorn (or another WSGI server)
-        # will handle running the application, so we don't need app.run() here.
-        # The 'pass' statement simply means do nothing if not in debug mode.
         pass
