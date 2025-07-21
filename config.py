@@ -153,6 +153,12 @@ class Config:
         
         if not cls.MAILCHANNELS_API_KEY and cls.MAILCHANNELS_ENABLED:
             issues.append("MAILCHANNELS_API_KEY missing but MailChannels is enabled")
+
+        if not cls.GOOGLE_SEARCH_API_KEY and cls.GOOGLE_SEARCH_ENABLED:
+            issues.append("GOOGLE_SEACH_API_KEY missing but Google Search is enabled")
+
+        if not cls.GOOGLE_SEARCH_CX and cls.GOOGLE_CX_ENABLED:
+            issues.append("GOOGLE_SEARCH_CX missing but Google CX is enabled")
         
         # Timeouts
         if cls.LLM_TIMEOUT < 5:

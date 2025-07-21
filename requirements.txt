@@ -39,3 +39,6 @@ stability-sdk==0.8.6
 
 # Email Validation
 email-validator==2.1.0
+
+# Google Searches
+httpx==0.27.0 

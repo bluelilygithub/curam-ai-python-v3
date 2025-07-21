@@ -15,6 +15,7 @@ import threading
 from datetime import datetime
 from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
+from services.web_search_service import WebSearchService
 
 # --- Global Queue for Live Log Streamer ---
 log_queue = queue.Queue()
@@ -195,6 +196,27 @@ def analyze_llm_performance(recent_queries):
             'location_breakdown': {'National': 1},
             'success_rates': {'overall': 100, 'claude': 100, 'gemini': 100}
         }
+
+
+def initialize_services():
+    services = {}
+    # ... (existing service initializations) ...
+
+    # Initialize Web Search Service
+    try:
+        services['web_search'] = WebSearchService()
+        logger.info("✅ Web Search service initialized.")
+        if not services['web_search'].is_available:
+            logger.warning("⚠️ Web Search service is not fully available due to configuration issues.")
+    except Exception as e:
+        logger.error(f"❌ Web Search service initialization failed: {e}")
+        services['web_search'] = None
+        
+    # ... (rest of initialize_services, update available_services list if desired) ...
+    available_services = [name for name, service in services.items() if service is not None]
+    logger.info(f"🚀 All core services initialized: {', '.join(available_services)}")
+    
+    return services
 
 # ================================
 # MAIN API ROUTES
