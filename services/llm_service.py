@@ -39,7 +39,7 @@ class LLMService:
             response = self.claude_client.messages.create(
                 model=Config.CLAUDE_MODEL,
                 max_tokens=10,
-                messages=[{"role": "user", "content": [{"type": "text", "text": prompt}]}]
+                messages=[{"role": "user", "content": [{"type": "text", "text": "hello"}]}]
             )
             if response.content:
                 self.claude_is_available = True
