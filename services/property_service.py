@@ -1,12 +1,12 @@
 import logging
 import time
 import json
-import re # ADDED: Import the regular expression module
+import re # Ensure this is imported
 
 from services.llm_service import LLMService
 from services.rss_service import RSSService
 from services.web_search_service import WebSearchService
-from config import Config # Import Config for GOOGLE_CSE_TOP_N_RESULTS
+from config import Config # Ensure Config is imported for GOOGLE_CSE_TOP_N_RESULTS, etc.
 
 logger = logging.getLogger(__name__)
 
@@ -52,18 +52,15 @@ class PropertyAnalysisService:
                 logger.warning("RSS service not available or not configured. Proceeding without RSS context.")
 
             # 3. LLM's Initial Assessment & Tool/Search Decision
-            # Prompt the LLM to decide if it needs web search and/or to refine the question.
             initial_prompt = self._build_initial_llm_prompt(question, location_info, rss_context)
             logger.info("🤖 Initial LLM prompt sent to determine search necessity.")
 
-            # Using Claude for initial decision-making step
             initial_llm_response = await self.llm_service.analyze_with_claude(initial_prompt)
             llm_provider = "claude" 
 
             if not initial_llm_response['success']:
                 raise Exception(initial_llm_response['error'])
 
-            # --- Check if LLM indicates a need for web search ---
             search_results_context = ""
             search_decision = self._check_for_search_necessity(initial_llm_response['answer'])
             
@@ -72,7 +69,6 @@ class PropertyAnalysisService:
                     logger.info(f"🌐 LLM determined web search is needed. Performing search for: '{search_decision['query']}'")
                     search_response = await self.web_search_service.search(search_decision['query'])
                     if search_response['success']:
-                        # Limit the number of search results and length of snippets to manage context window
                         search_results_context = "\n\nWeb Search Results:\n" + "\n".join([
                             f"- Title: {item.get('title')}\n  Snippet: {item.get('snippet', '')[:Config.GOOGLE_CSE_SNIPPET_MAX_LENGTH]}...\n  Link: {item.get('link')}"
                             for item in search_response['results'][:Config.GOOGLE_CSE_TOP_N_RESULTS]
@@ -92,7 +88,6 @@ class PropertyAnalysisService:
             final_llm_prompt = self._build_final_llm_prompt(question, location_info, rss_context, search_results_context)
             logger.info("🤖 Final LLM prompt sent with all gathered context.")
 
-            # Prioritize Gemini for comprehensive report generation, fallback to Claude
             if self.llm_service.gemini_is_available:
                 llm_response = await self.llm_service.analyze_with_gemini(final_llm_prompt)
                 llm_provider = "gemini"
@@ -129,7 +124,7 @@ class PropertyAnalysisService:
             'melbourne': {'scope': 'Melbourne', 'keywords': ['melbourne', 'victoria', 'vic']},
             'perth': {'scope': 'Perth', 'keywords': ['perth', 'western australia', 'wa']},
             'adelaide': {'scope': 'Adelaide', 'keywords': ['adelaide', 'south australia', 'sa']},
-            'darwin': {'scope': 'Darwin', 'keywords': ['darwin', 'northern territory', 'nt']}, # Added Darwin
+            'darwin': {'scope': 'Darwin', 'keywords': ['darwin', 'northern territory', 'nt']},
         }
         question_lower = question.lower()
         detected_scope = 'National'
