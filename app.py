@@ -231,6 +231,27 @@ def analyze_llm_performance(recent_queries):
             'success_rates': {'overall': 100, 'claude': 100, 'gemini': 100}
         }
 
+# --- User-Specific Default Questions Function ---
+def get_user_specific_default_questions(user_id: str) -> list:
+    """Returns user-specific default questions based on user profile."""
+    user_defaults = {
+        'sarah_buyer': [
+            "Best suburbs under $600k for first home buyers in Brisbane",
+            "Units near train stations with good transport links",
+            "First home buyer grants and assistance programs", 
+            "Safest affordable suburbs for young professionals",
+            "What areas have the best schools and family amenities?"
+        ],
+        'michael_investor': [
+            "High rental yield suburbs in Brisbane",
+            "Investment property hotspots 2025",
+            "Logan vs Ipswich for property investment",
+            "Brisbane outer suburbs with growth potential",
+            "What are the best strategies for property portfolio growth?"
+        ]
+    }
+    return user_defaults.get(user_id, Config.DEFAULT_EXAMPLE_QUESTIONS)
+
 # ================================
 # MAIN API ROUTES
 # These are the primary endpoints for the frontend application.
@@ -523,68 +544,75 @@ async def analyze_property_question(): # Changed to async
 @app.route('/api/property/questions', methods=['GET'])
 def get_property_questions():
     """
-    Provides dynamic question suggestions to the frontend, combining
-    recent user history, popular global queries, and default examples.
+    Provides personalized question suggestions to the frontend.
+    Each user gets their own recent questions and user-specific defaults.
     """
     try:
         user_id = request.args.get('user_id', 'anonymous')
         questions = []
         
+        logger.info(f"🔍 Getting personalized questions for user '{user_id}'")
+        
         if services['database']:
             try:
-                # 1. Fetch recent queries for the specific user (up to 5)
+                # 1. Get recent queries for THIS specific user (up to 5)
                 recent_user_queries = services['database'].get_query_history(limit=5, user_id=user_id)
                 for query_item in recent_user_queries:
                     questions.append({
                         'question': query_item['question'],
-                        'type': 'recent_user', # Mark as recent user question
+                        'type': 'recent_user', # Blue - recent user questions
                         'user_specific': True,
-                        'query_id': query_item['id'], # Include query_id for deletion
-                        'count': 1 # Count is 1 for a single history item
+                        'query_id': query_item['id'],
+                        'count': 1
                     })
-                logger.info(f"Retrieved {len(recent_user_queries)} recent queries for user '{user_id}'.")
+                logger.info(f"✅ Added {len(recent_user_queries)} recent queries for user '{user_id}'.")
 
-                # 2. Fetch overall popular queries (up to 5, global)
-                popular_global_queries = services['database'].get_popular_questions(limit=5, user_id=None) # user_id=None for global popularity
-                for item in popular_global_queries:
-                    # Avoid adding duplicates if a popular question is already in recent_user_queries
-                    if not any(q['question'] == item['question'] for q in questions):
-                        questions.append({
-                            'question': item['question'],
-                            'type': 'popular_global', # Mark as popular global question
-                            'user_specific': False,
-                            'query_id': item['id'], # Include query_id for deletion if available (from popular queries table)
-                            'count': item['count']
-                        })
-                logger.info(f"Retrieved {len(popular_global_queries)} popular global queries.")
+                # 2. If user has few recent questions, get their own popular questions
+                if len(questions) < 3:
+                    user_popular_queries = services['database'].get_popular_questions(limit=3, user_id=user_id)
+                    for item in user_popular_queries:
+                        # Avoid duplicates
+                        if not any(q['question'] == item['question'] for q in questions):
+                            questions.append({
+                                'question': item['question'],
+                                'type': 'popular_user', # Green - user's popular questions
+                                'user_specific': True,
+                                'query_id': item['id'],
+                                'count': item['count']
+                            })
+                    logger.info(f"✅ Added {len(user_popular_queries)} popular queries for user '{user_id}'.")
 
             except Exception as e:
-                logger.error(f"Failed to retrieve dynamic questions from database: {e}")
+                logger.error(f"❌ Failed to retrieve dynamic questions from database: {e}")
         
-        # 3. Fallback: If no dynamic questions are found, use default examples from Config
+        # 3. If user has NO personal questions, add user-specific defaults
         if not questions:
-            for question_text in Config.DEFAULT_EXAMPLE_QUESTIONS:
+            default_questions = get_user_specific_default_questions(user_id)
+            for question_text in default_questions:
                 questions.append({
                     'question': question_text,
-                    'type': 'example', # Mark as an example question
-                    'user_specific': False,
-                    'query_id': None # No query_id for hardcoded examples
+                    'type': 'example', # Gray - default examples
+                    'user_specific': True, # Now user-specific
+                    'query_id': None,
+                    'count': 0
                 })
-            logger.info("Using default example questions as no dynamic questions found.")
+            logger.info(f"✅ Added {len(default_questions)} user-specific default questions for '{user_id}'.")
         
         return jsonify({
             'success': True,
             'questions': questions,
             'user_id': user_id,
             'total_count': len(questions),
+            'personalization': 'user_specific', # Indicate this is personalized
             'timestamp': datetime.now().isoformat()
         })
         
     except Exception as e:
-        logger.error(f"Failed to get questions data: {e}")
+        logger.error(f"❌ Failed to get personalized questions for '{user_id}': {e}")
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': str(e),
+            'user_id': user_id
         }), 500
 
 @app.route('/api/property/history', methods=['GET'])
@@ -716,7 +744,7 @@ def get_property_stats():
                 logger.error(f"Failed to retrieve Web Search service status: {e}")
                 stats['web_search_status'] = {'error': str(e)}
         else:
-            stats['web_search_status'] = {'status': 'not_available', 'details': 'Service not initialized'} # Added explicit status if not initialized
+            stats['web_search_status'] = {'status': 'not_available', 'details': 'Service not initialized'}
         
         return jsonify({
             'success': True,
@@ -730,6 +758,41 @@ def get_property_stats():
             'success': False,
             'error': str(e)
         }), 500
+
+# ================================
+# DEBUG ENDPOINT (TEMPORARY)
+# ================================
+
+@app.route('/debug/queries')
+def debug_queries():
+    """Temporary endpoint to see what's actually stored in the database by user."""
+    if not services['database']:
+        return {"error": "Database not available"}
+    
+    try:
+        # Get all queries with user info
+        all_queries = services['database'].get_query_history(limit=50, user_id=None)
+        
+        user_breakdown = {}
+        for query in all_queries:
+            user = query.get('user_id', 'unknown')
+            if user not in user_breakdown:
+                user_breakdown[user] = []
+            user_breakdown[user].append({
+                'id': query['id'],
+                'question': query['question'][:50] + '...',
+                'created_at': query['created_at'],
+                'llm_provider': query.get('llm_provider', 'unknown')
+            })
+        
+        return {
+            'total_queries': len(all_queries),
+            'by_user': user_breakdown,
+            'user_count': len(user_breakdown),
+            'timestamp': datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 # ================================
 # UTILITY FUNCTIONS
@@ -763,7 +826,7 @@ def detect_location_from_question(question: str) -> str:
 
 def determine_llm_provider(result: dict) -> str:
     """
-    Determines which LLM provider was used
+    Determines which LLM provider was used with improved error handling.
     """
     if not result or not isinstance(result, dict):
         return 'unknown'
@@ -779,27 +842,6 @@ def determine_llm_provider(result: dict) -> str:
         return 'gemini'
     else:
         return 'unknown'
-
-# The old get_user_preset_questions is commented out as it's replaced by dynamic logic in get_property_questions
-# def get_user_preset_questions(user_id: str) -> list:
-#     """Get user-specific preset questions - DEPRECATED/REPLACED by dynamic API."""
-#     user_presets = {
-#         'sarah_buyer': [
-#             "Best suburbs under $600k for first home buyers in Brisbane",
-#             "Units near train stations in Brisbane",
-#             "First home buyer grants and assistance",
-#             "Safest affordable suburbs for young professionals"
-#         ],
-#         'michael_investor': [
-#             "High rental yield suburbs in Brisbane",
-#             "Investment property hotspots 2025",
-#             "Logan vs Ipswich for property investment",
-#             "Brisbane outer suburbs with growth potential"
-#         ]
-#     }
-#     from config import Config
-#     return user_presets.get(user_id, Config.PRESET_QUESTIONS)
-
 
 # ================================
 # GLOBAL ERROR HANDLERS
@@ -833,7 +875,8 @@ def not_found_error_handler(error):
             'POST /api/property/analyze',
             'GET /api/property/history',
             'DELETE /api/property/history/{query_id}',
-            'GET /api/property/stats'
+            'GET /api/property/stats',
+            'GET /debug/queries'  # Added debug endpoint
         ],
         'details': str(error),
         'timestamp': datetime.now().isoformat()
@@ -878,33 +921,3 @@ if __name__ == '__main__':
         # will handle running the application, so we don't need app.run() here.
         # The 'pass' statement simply means do nothing if not in debug mode.
         pass
-
-
-
-@app.route('/debug/queries')
-def debug_queries():
-    """Temporary endpoint to see what's in the database"""
-    if not services['database']:
-        return {"error": "Database not available"}
-    
-    try:
-        # Get all queries with user info
-        all_queries = services['database'].get_query_history(limit=20, user_id=None)
-        
-        user_breakdown = {}
-        for query in all_queries:
-            user = query.get('user_id', 'unknown')
-            if user not in user_breakdown:
-                user_breakdown[user] = []
-            user_breakdown[user].append({
-                'id': query['id'],
-                'question': query['question'][:50] + '...',
-                'created_at': query['created_at']
-            })
-        
-        return {
-            'total_queries': len(all_queries),
-            'by_user': user_breakdown
-        }
-    except Exception as e:
-        return {"error": str(e)}
