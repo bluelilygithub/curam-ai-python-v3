@@ -48,7 +48,7 @@ class Config:
     STABILITY_AI_ENABLED = True if os.getenv('STABILITY_AI_API_KEY') else False
     HUGGING_FACE_ENABLED = True if os.getenv('HUGGINGFACE_API_KEY') else False
     MAILCHANNELS_ENABLED = True if os.getenv('MAILCHANNELS_API_KEY') else False
-    GOOGLE_CSE_ENABLED = True if os.getenv('GOOGLE_CSE_API_KEY') and os.getenv('GOOGLE_CSE_CX') else False
+    GOOGLE_CSE_ENABLED = True if os.getenv('GOOGLE_SEARCH_API_KEY') and os.getenv('GOOGLE_SEARCH_CX') else False
 
     # --- Frontend/CORS Configuration ---
     CORS_ORIGINS = [
