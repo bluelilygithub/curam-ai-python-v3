@@ -63,8 +63,8 @@ class Config:
     # --- RSS Feed Configuration ---
     RSS_FEEDS = [
         {"name": "RealEstate.com.au News", "url": "https://www.realestate.com.au/news/feed/", "categories": ["market", "investment"], "locations": ["national"]},
-        {"name": "Smart Property Investment", "url": "https://www.smartpropertyinvestment.com.au/rss.xml", "categories": ["investment", "strategy"], "locations": ["national"]},
-        {"name": "View.com.au Property News", "url": "https://www.view.com.au/news/rss", "categories": ["market", "trends"], "locations": ["national"]},
+    #    {"name": "Smart Property Investment", "url": "https://www.smartpropertyinvestment.com.au/rss.xml", "categories": ["investment", "strategy"], "locations": ["national"]},
+    #    {"name": "View.com.au Property News", "url": "https://www.view.com.au/news/rss", "categories": ["market", "trends"], "locations": ["national"]},
     ]
     RSS_TOP_N_ARTICLES_FOR_LLM = 5
     RSS_CACHE_DURATION_HOURS = 1
