@@ -1,11 +1,6 @@
-"""
-Enhanced Property Database V3
-SQLAlchemy-based database service that maintains compatibility with existing interface
-"""
-
 import os
 import logging
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, Float
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, Float, func # ADDED 'func' here
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -129,35 +124,56 @@ class PropertyDatabase: # Assuming your class name is PropertyDatabase as in app
         """
         Retrieves statistics for a specific user.
         Includes total queries, average processing time, and recent queries.
+        Returns a dictionary with user info, stats, and recent queries.
+        Returns an empty/default structure if no queries found, rather than None.
         """
         session = self.Session()
         try:
+            # Get total queries for the user
             total_queries = session.query(Query).filter_by(user_id=user_id).count()
             
-            # Calculate average processing time
+            # Calculate average processing time for successful queries
+            # func.avg needs to be imported from sqlalchemy
             avg_time_result = session.query(
                 func.avg(Query.processing_time)
-            ).filter_by(user_id=user_id).scalar()
-            avg_processing_time = round(avg_time_result, 2) if avg_time_result else 0
+            ).filter_by(user_id=user_id, success=True).scalar()
+            
+            # Ensure avg_processing_time is always a number, even if no queries or result is None
+            avg_processing_time = round(avg_time_result, 2) if avg_time_result is not None else 0.0
             
             # Get recent queries for this user (e.g., last 5)
+            # This relies on your existing get_query_history method
             recent_queries = self.get_query_history(limit=5, user_id=user_id)
             
             # Get user info (assuming a separate User table or hardcoded demo users)
-            # For this demo, user info is assumed to come from a pre-defined list or simple lookup
-            user_info = self._get_demo_user_info(user_id)
-
+            user_info = self._get_demo_user_info(user_id) # This function gets hardcoded info
+            
+            # Return a complete dictionary structure, even if no queries exist for the user
             return {
                 'user': user_info,
                 'stats': {
                     'total_queries': total_queries,
                     'avg_processing_time': avg_processing_time,
+                    'successful_queries': session.query(Query).filter_by(user_id=user_id, success=True).count(),
+                    'failed_queries': session.query(Query).filter_by(user_id=user_id, success=False).count(),
                 },
                 'recent_queries': recent_queries
             }
         except Exception as e:
-            logger.error(f"Failed to get stats for user '{user_id}': {e}")
-            return None # Return None or raise exception to indicate failure
+            logger.error(f"Failed to get user stats for '{user_id}': {e}")
+            # On error, return an empty but valid structure to avoid crashing the frontend
+            user_info = self._get_demo_user_info(user_id)
+            return {
+                'user': user_info,
+                'stats': {
+                    'total_queries': 0,
+                    'avg_processing_time': 0.0,
+                    'successful_queries': 0,
+                    'failed_queries': 0,
+                    'error': str(e) # Include error detail in stats
+                },
+                'recent_queries': []
+            }
         finally:
             session.close()
 
@@ -168,7 +184,6 @@ class PropertyDatabase: # Assuming your class name is PropertyDatabase as in app
                 'user_id': 'sarah_buyer',
                 'name': 'Sarah Chen',
                 'profile_type': 'first_buyer',
-                'description': 'First home buyer focused on affordability and transport links',
                 'avatar': '👩‍💼'
             },
             'michael_investor': {
@@ -212,25 +227,25 @@ class PropertyDatabase: # Assuming your class name is PropertyDatabase as in app
         """
         Retrieves the most popular questions based on frequency,
         optionally filtered by user_id.
-        Returns a list of dictionaries with 'question' and 'count'.
+        Returns a list of dictionaries with 'question', 'count', and a representative 'id'.
         """
         session = self.Session()
         try:
             # Import func from sqlalchemy here to avoid circular dependencies if needed globally
-            from sqlalchemy import func
+            # from sqlalchemy import func # Already imported at the top now.
             
-            # Group by question and count occurrences
-            query = session.query(
+            # Step 1: Count occurrences of each question
+            counted_questions_subquery = session.query(
                 Query.question,
-                func.count(Query.question).label('count')
-            )
-            
+                func.count(Query.question).label('question_count'),
+                func.max(Query.id).label('representative_id') # Get max ID for each question
+            ).group_by(Query.question)
+
             if user_id:
-                query = query.filter_by(user_id=user_id)
+                counted_questions_subquery = counted_questions_subquery.filter_by(user_id=user_id)
             
             # Order by count in descending order and limit
-            popular_records = query.group_by(Query.question) \
-                                   .order_by(func.count(Query.question).desc()) \
+            popular_records = counted_questions_subquery.order_by(func.count(Query.question).desc()) \
                                    .limit(limit).all()
             
             popular_data = []
@@ -242,8 +257,6 @@ class PropertyDatabase: # Assuming your class name is PropertyDatabase as in app
                 # Assuming here the deletion relies on the `id` from `recent_user_queries`
                 # which are actual individual query instances. For popular_global, we might not have a single ID.
                 # To resolve this, you might store a representative query_id or allow deletion by question text.
-                # For now, popular questions obtained this way won't have a direct query_id for deletion,
-                # unless you modify the schema to link popular questions to a specific ID.
                 # A common solution is to take the LATEST query_id for each distinct question.
                 # Let's adjust to try and get a query_id for deletion from the most recent entry of that question.
                 latest_query_for_question = session.query(Query.id)\
