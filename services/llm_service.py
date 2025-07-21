@@ -1,5 +1,6 @@
 import logging
 import os
+import time  # ← ADD THIS MISSING IMPORT
 import httpx # For making asynchronous HTTP requests
 import json # For handling JSON responses
 from datetime import datetime # For timestamps and health checks
@@ -130,17 +131,16 @@ class LLMService:
             logger.info("GEMINI PROMPT BEING SENT.")
             start_time = time.time()
             
-            # Gemini client's generate_content is synchronous but can be run in a thread pool executor for async views
-            # or directly awaited if the underlying library uses async httpx like here.
-            response = await self.gemini_client.generate_content_async(
+            # For Gemini, we'll use the synchronous method but run it in async context
+            # Note: google-generativeai doesn't have async methods, so we use sync
+            response = self.gemini_client.generate_content(
                 prompt,
                 safety_settings=[
                     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
                     {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
                     {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
                     {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-                ],
-                request_options={"timeout": self.llm_timeout} # Apply timeout
+                ]
             )
             
             answer = response.text

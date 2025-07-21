@@ -73,8 +73,9 @@ class PropertyDatabase:
         
         # 6. Test connection immediately
         try:
+            from sqlalchemy import text
             with self.engine.connect() as connection:
-                result = connection.execute("SELECT version();")
+                result = connection.execute(text("SELECT version()"))
                 version = result.fetchone()[0]
                 logger.info(f"✅ DATABASE CONNECTION SUCCESSFUL!")
                 logger.info(f"📊 PostgreSQL Version: {version[:50]}...")
