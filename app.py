@@ -763,17 +763,22 @@ def detect_location_from_question(question: str) -> str:
 
 def determine_llm_provider(result: dict) -> str:
     """
-    Determines which LLM provider (Claude or Gemini) was primarily
-    responsible for a successful analysis, based on the analysis result structure.
+    Determines which LLM provider was used
     """
+    if not result or not isinstance(result, dict):
+        return 'unknown'
+    
+    # Check the llm_provider field first (this is what your property service returns)
+    if 'llm_provider' in result:
+        return result['llm_provider']
+    
+    # Fallback to checking nested results
     if result.get('claude_result', {}).get('success', False):
         return 'claude'
     elif result.get('gemini_result', {}).get('success', False):
         return 'gemini'
     else:
-        # Default to 'unknown' or 'claude' if neither is explicitly successful
-        # 'unknown' is safer if you want to explicitly track failures.
-        return 'unknown' 
+        return 'unknown'
 
 # The old get_user_preset_questions is commented out as it's replaced by dynamic logic in get_property_questions
 # def get_user_preset_questions(user_id: str) -> list:
