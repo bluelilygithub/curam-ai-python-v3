@@ -701,23 +701,7 @@ def determine_llm_provider(result: dict) -> str:
         # Default to Claude if both fail or neither is explicitly marked successful
         return 'claude'
 
-def get_user_preset_questions(user_id: str) -> list:
-    """Get user-specific preset questions"""
-    user_presets = {
-        'sarah_buyer': [
-            "Best suburbs under $600k for first home buyers in Brisbane",
-            "Units near train stations in Brisbane",
-            "First home buyer grants and assistance",
-            "Safest affordable suburbs for young professionals"
-        ],
-        'michael_investor': [
-            "High rental yield suburbs in Brisbane",
-            "Investment property hotspots 2025",
-            "Logan vs Ipswich for property investment",
-            "Brisbane outer suburbs with growth potential"
-        ]
-    }
-    
+
     from config import Config
     return user_presets.get(user_id, Config.PRESET_QUESTIONS)
 
