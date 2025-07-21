@@ -608,7 +608,7 @@ async def analyze_property_question():
         }), 500
 
 
-        
+
 
 @app.route('/api/property/questions', methods=['GET'])
 def get_property_questions():
@@ -981,6 +981,30 @@ def internal_server_error_handler(error):
         'details': 'Please try again later. If the problem persists, contact support.',
         'timestamp': datetime.now().isoformat()
     }), 500
+
+
+
+@app.route('/debug/google-cse')
+def debug_google_cse():
+    """Debug Google CSE configuration"""
+    api_key = os.getenv('GOOGLE_CSE_API_KEY')
+    cx = os.getenv('GOOGLE_CSE_CX')
+    
+    return jsonify({
+        'api_key_exists': bool(api_key),
+        'api_key_starts_with': api_key[:10] if api_key else None,
+        'cx_exists': bool(cx),
+        'cx_value': cx,
+        'google_cse_enabled': Config.GOOGLE_CSE_ENABLED,
+        'web_search_service_exists': services.get('web_search') is not None,
+        'web_search_available': services.get('web_search').is_available if services.get('web_search') else False,
+        'environment_vars_found': {
+            'GOOGLE_CSE_API_KEY': 'present' if api_key else 'missing',
+            'GOOGLE_CSE_CX': 'present' if cx else 'missing'
+        }
+    })
+
+
 
 # ================================
 # APPLICATION ENTRY POINT
