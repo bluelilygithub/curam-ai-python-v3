@@ -5,47 +5,132 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 
-# Import Config, assuming it's available and defines DATABASE_PATH
+# Import Config and models
 from config import Config 
-# Corrected import: Import Query and Base from models.py
 from models import Base, Query 
 
 logger = logging.getLogger(__name__)
 
-# Base is now imported from models.py, not declared here.
-# Query class is now defined in models.py, removed from here.
-
-# Main Database Service Class
 class PropertyDatabase:
     def __init__(self):
+        # === ENHANCED RAILWAY POSTGRESQL CONNECTION LOGIC ===
+        
+        # 1. Primary: Try Railway's DATABASE_URL (most common)
         database_url = os.getenv('DATABASE_URL')
         
-        # --- CRITICAL CHANGE: REMOVE SQLITE FALLBACK AND FORCE PGSQL ---
-        # This will explicitly crash the app if DATABASE_URL is not set,
-        # providing a clearer error than the SQLite permission error.
+        # 2. Fallback: Construct from individual Railway variables
         if not database_url:
-            logger.critical("❌ DATABASE_URL environment variable is NOT set. Cannot connect to PostgreSQL.")
-            raise ValueError("DATABASE_URL environment variable must be set for PostgreSQL connection.")
+            pg_host = os.getenv('PGHOST')
+            pg_port = os.getenv('PGPORT', '5432')
+            pg_user = os.getenv('PGUSER', 'postgres')
+            pg_password = os.getenv('PGPASSWORD')
+            pg_database = os.getenv('PGDATABASE', 'railway')
+            
+            if all([pg_host, pg_password]):
+                database_url = f"postgresql://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_database}"
+                logger.info("✅ Constructed DATABASE_URL from individual Railway variables.")
+            else:
+                logger.error("❌ Missing Railway PostgreSQL environment variables.")
+                logger.error(f"PGHOST: {'✓' if pg_host else '✗'}")
+                logger.error(f"PGPASSWORD: {'✓' if pg_password else '✗'}")
+                logger.error(f"PGUSER: {pg_user}")
+                logger.error(f"PGDATABASE: {pg_database}")
+                logger.error(f"PGPORT: {pg_port}")
         
-        self.engine = create_engine(database_url)
-        logger.info("Using PostgreSQL database (DATABASE_URL detected).")
-        # --- END CRITICAL CHANGE ---
-
-        # Only create_all if in development mode or explicitly needed for initial setup.
-        # In a real production app, you would typically use a migration tool like Alembic.
-        if os.getenv('FLASK_ENV') == 'development' or os.getenv('DB_INIT_ON_STARTUP') == 'true':
-            logger.info("Attempting to create database tables (development/init mode).")
+        # 3. Final validation
+        if not database_url:
+            logger.critical("❌ NO DATABASE CONNECTION POSSIBLE!")
+            logger.critical("Missing both DATABASE_URL and individual Railway PostgreSQL variables.")
+            logger.critical("Check your Railway PostgreSQL service environment variables.")
+            raise ValueError(
+                "❌ RAILWAY DATABASE CONNECTION FAILED!\n"
+                "Required: Either DATABASE_URL or PGHOST+PGPASSWORD environment variables.\n"
+                "Check your Railway PostgreSQL service variables tab."
+            )
+        
+        # 4. Log connection details (safely, without password)
+        safe_url = database_url.split('@')[1] if '@' in database_url else "unknown"
+        logger.info(f"🔗 Connecting to PostgreSQL: ...@{safe_url}")
+        
+        # 5. Create SQLAlchemy engine with Railway-optimized settings
+        try:
+            self.engine = create_engine(
+                database_url,
+                # Railway-specific optimizations
+                pool_size=5,  # Conservative pool size for Railway
+                max_overflow=10,
+                pool_timeout=30,
+                pool_recycle=300,  # Recycle connections every 5 minutes
+                connect_args={
+                    "sslmode": "require",  # Railway requires SSL
+                    "connect_timeout": 10,
+                }
+            )
+            logger.info("✅ PostgreSQL engine created with Railway optimizations.")
+        except Exception as e:
+            logger.error(f"❌ Failed to create database engine: {e}")
+            raise
+        
+        # 6. Test connection immediately
+        try:
+            with self.engine.connect() as connection:
+                result = connection.execute("SELECT version();")
+                version = result.fetchone()[0]
+                logger.info(f"✅ DATABASE CONNECTION SUCCESSFUL!")
+                logger.info(f"📊 PostgreSQL Version: {version[:50]}...")
+        except Exception as e:
+            logger.error(f"❌ DATABASE CONNECTION TEST FAILED: {e}")
+            logger.error("This usually means:")
+            logger.error("1. Wrong DATABASE_URL format")
+            logger.error("2. Railway PostgreSQL service not running")  
+            logger.error("3. Network connectivity issues")
+            logger.error("4. Invalid credentials")
+            raise ConnectionError(f"Cannot connect to Railway PostgreSQL: {e}")
+        
+        # 7. Create tables if needed (development/init mode)
+        should_init_tables = (
+            os.getenv('FLASK_ENV') == 'development' or 
+            os.getenv('DB_INIT_ON_STARTUP') == 'true' or
+            os.getenv('RAILWAY_ENVIRONMENT') == 'development'  # Railway-specific
+        )
+        
+        if should_init_tables:
+            logger.info("🔧 Creating/updating database tables (development mode)...")
             try:
                 Base.metadata.create_all(self.engine)
-                logger.info("Database tables checked/created.")
+                logger.info("✅ Database tables verified/created successfully.")
             except Exception as e:
-                logger.error(f"Failed to create database tables: {e}. Check DB connection/permissions.")
-                raise # Re-raise to crash if table creation fails
+                logger.error(f"❌ Failed to create database tables: {e}")
+                logger.error("Check database permissions and table structure.")
+                raise
         else:
-            logger.info("Skipping database table creation on startup (production mode).")
-
+            logger.info("⏭️  Skipping table creation (production mode).")
+            
+        # 8. Initialize session maker
         self.Session = sessionmaker(bind=self.engine)
-        logger.info("Database initialized successfully.")
+        logger.info("🚀 PropertyDatabase initialization complete!")
+        
+        # 9. Log final status
+        self._log_connection_status()
+    
+    def _log_connection_status(self):
+        """Log the current database connection status for debugging."""
+        try:
+            with self.engine.connect() as conn:
+                # Test basic query
+                result = conn.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';")
+                table_count = result.fetchone()[0]
+                logger.info(f"📊 Database Status: {table_count} tables in public schema")
+                
+                # Check if our specific table exists
+                result = conn.execute(
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'queries';"
+                )
+                queries_table_exists = result.fetchone()[0] > 0
+                logger.info(f"📋 Queries table exists: {'✅ Yes' if queries_table_exists else '❌ No'}")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Could not verify database status: {e}")
 
     def store_query(self, question: str, answer: str, question_type: str, 
                     processing_time: float, success: bool, location_detected: str, 
@@ -66,16 +151,16 @@ class PropertyDatabase:
                 llm_provider=llm_provider,
                 confidence_score=confidence_score,
                 user_id=user_id,
-                created_at=datetime.now() # Ensure timestamp is explicitly set here
+                created_at=datetime.now()
             )
             session.add(new_query)
             session.commit()
-            logger.info(f"Query stored: '{question[:50]}...' by user '{user_id}'. ID: {new_query.id}")
+            logger.info(f"💾 Query stored: ID {new_query.id} by user '{user_id}'")
             return new_query.id
         except Exception as e:
-            session.rollback() # Rollback changes in case of error
-            logger.error(f"Failed to store query '{question[:50]}...': {e}")
-            raise # Re-raise the exception after logging
+            session.rollback()
+            logger.error(f"❌ Failed to store query for user '{user_id}': {e}")
+            raise
         finally:
             session.close()
 
@@ -86,13 +171,12 @@ class PropertyDatabase:
         """
         session = self.Session()
         try:
-            query = session.query(Query).order_by(Query.created_at.desc()) # Order by newest first
+            query = session.query(Query).order_by(Query.created_at.desc())
             if user_id:
                 query = query.filter_by(user_id=user_id)
             
             history_records = query.limit(limit).all()
             
-            # Convert SQLAlchemy objects to dictionaries for API response
             history_data = []
             for record in history_records:
                 history_data.append({
@@ -106,10 +190,10 @@ class PropertyDatabase:
                     'location': record.location_detected,
                     'llm_provider': record.llm_provider
                 })
-            logger.debug(f"Retrieved {len(history_data)} history records for user '{user_id}'.")
+            logger.debug(f"📊 Retrieved {len(history_data)} history records for user '{user_id}'.")
             return history_data
         except Exception as e:
-            logger.error(f"Failed to get query history for user '{user_id}': {e}")
+            logger.error(f"❌ Failed to get query history for user '{user_id}': {e}")
             return []
         finally:
             session.close()
@@ -117,31 +201,21 @@ class PropertyDatabase:
     def get_user_stats(self, user_id: str) -> dict:
         """
         Retrieves statistics for a specific user.
-        Includes total queries, average processing time, and recent queries.
         Returns a dictionary with user info, stats, and recent queries.
-        Returns an empty/default structure if no queries found, rather than None.
         """
         session = self.Session()
         try:
-            # Get total queries for the user
             total_queries = session.query(Query).filter_by(user_id=user_id).count()
             
-            # Calculate average processing time for successful queries
             avg_time_result = session.query(
                 func.avg(Query.processing_time)
             ).filter_by(user_id=user_id, success=True).scalar()
             
-            # Ensure avg_processing_time is always a number, even if no queries or result is None
             avg_processing_time = round(avg_time_result, 2) if avg_time_result is not None else 0.0
             
-            # Get recent queries for this user (e.g., last 5)
-            # This relies on your existing get_query_history method
             recent_queries = self.get_query_history(limit=5, user_id=user_id)
+            user_info = self._get_demo_user_info(user_id)
             
-            # Get user info (assuming a separate User table or hardcoded demo users)
-            user_info = self._get_demo_user_info(user_id) # This function gets hardcoded info
-            
-            # Return a complete dictionary structure, even if no queries exist for the user
             return {
                 'user': user_info,
                 'stats': {
@@ -153,8 +227,7 @@ class PropertyDatabase:
                 'recent_queries': recent_queries
             }
         except Exception as e:
-            logger.error(f"Failed to get user stats for '{user_id}': {e}")
-            # On error, return an empty but valid structure to avoid crashing the frontend
+            logger.error(f"❌ Failed to get user stats for '{user_id}': {e}")
             user_info = self._get_demo_user_info(user_id)
             return {
                 'user': user_info,
@@ -163,7 +236,7 @@ class PropertyDatabase:
                     'avg_processing_time': 0.0,
                     'successful_queries': 0,
                     'failed_queries': 0,
-                    'error': str(e) # Include error detail in stats
+                    'error': str(e)
                 },
                 'recent_queries': []
             }
@@ -171,7 +244,7 @@ class PropertyDatabase:
             session.close()
 
     def _get_demo_user_info(self, user_id: str) -> dict:
-        """Helper to get hardcoded demo user info. In a real app, this would be from a DB."""
+        """Helper to get hardcoded demo user info."""
         demo_users_data = {
             'sarah_buyer': {
                 'user_id': 'sarah_buyer',
@@ -188,12 +261,15 @@ class PropertyDatabase:
                 'avatar': '👨‍💻'
             }
         }
-        return demo_users_data.get(user_id, {'user_id': user_id, 'name': 'Unknown User', 'profile_type': 'guest', 'avatar': '👤'})
+        return demo_users_data.get(user_id, {
+            'user_id': user_id, 
+            'name': 'Unknown User', 
+            'profile_type': 'guest', 
+            'avatar': '👤'
+        })
 
     def get_demo_users(self) -> list:
         """Retrieves a list of all demo users for the frontend."""
-        # For a simple demo, returning hardcoded users.
-        # In a real app, this would query a 'users' table.
         return [
             self._get_demo_user_info('sarah_buyer'),
             self._get_demo_user_info('michael_investor')
@@ -209,33 +285,33 @@ class PropertyDatabase:
             return {
                 'total_queries_stored': total_queries,
                 'last_query_at': last_query_time[0].isoformat() if last_query_time else None,
-                'database_engine': str(self.engine.url).split('+')[0]
+                'database_engine': 'postgresql',
+                'connection_status': 'connected'
             }
         except Exception as e:
-            logger.error(f"Failed to get database stats: {e}")
-            return {'error': str(e)}
+            logger.error(f"❌ Failed to get database stats: {e}")
+            return {
+                'error': str(e),
+                'connection_status': 'error'
+            }
         finally:
             session.close()
 
     def get_popular_questions(self, limit: int = 5, user_id: str = None) -> list:
         """
-        Retrieves the most popular questions based on frequency,
-        optionally filtered by user_id.
-        Returns a list of dictionaries with 'question', 'count', and a representative 'id'.
+        Retrieves the most popular questions based on frequency.
         """
         session = self.Session()
         try:
-            # Step 1: Count occurrences of each question
             counted_questions_subquery = session.query(
                 Query.question,
                 func.count(Query.question).label('question_count'),
-                func.max(Query.id).label('representative_id') # Get max ID for each question
+                func.max(Query.id).label('representative_id')
             ).group_by(Query.question)
 
             if user_id:
                 counted_questions_subquery = counted_questions_subquery.filter_by(user_id=user_id)
             
-            # Order by count in descending order and limit
             popular_records = counted_questions_subquery.order_by(func.count(Query.question).desc()) \
                                    .limit(limit).all()
             
@@ -243,14 +319,14 @@ class PropertyDatabase:
             for record in popular_records:
                 popular_data.append({
                     'question': record.question,
-                    'count': record.count,
-                    'id': record.representative_id # Use the representative ID
+                    'count': record.question_count,
+                    'id': record.representative_id
                 })
             
-            logger.debug(f"Retrieved {len(popular_data)} popular questions.")
+            logger.debug(f"📊 Retrieved {len(popular_data)} popular questions.")
             return popular_data
         except Exception as e:
-            logger.error(f"Failed to get popular questions: {e}")
+            logger.error(f"❌ Failed to get popular questions: {e}")
             return []
         finally:
             session.close()
@@ -266,14 +342,14 @@ class PropertyDatabase:
             if query:
                 session.delete(query)
                 session.commit()
-                logger.info(f"Query ID {query_id} successfully deleted from database.")
+                logger.info(f"🗑️ Query ID {query_id} successfully deleted.")
                 return True
             else:
-                logger.warning(f"Attempted to delete query ID {query_id}, but it was not found.")
+                logger.warning(f"⚠️ Query ID {query_id} not found for deletion.")
                 return False
         except Exception as e:
             session.rollback()
-            logger.error(f"Error deleting query ID {query_id}: {e}")
-            raise # Re-raise the exception after logging and rollback
+            logger.error(f"❌ Error deleting query ID {query_id}: {e}")
+            raise
         finally:
             session.close()
