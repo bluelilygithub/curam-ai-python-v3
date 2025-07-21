@@ -50,10 +50,6 @@ class Config:
     MAILCHANNELS_ENABLED = True if os.getenv('MAILCHANNELS_API_KEY') else False
     GOOGLE_CSE_ENABLED = True if os.getenv('GOOGLE_SEARCH_API_KEY') and os.getenv('GOOGLE_SEARCH_CX') else False
 
-    # NEW: LLM Token Limits
-    MAX_TOKENS_PER_QUESTION = 5000  # Example: 5000 tokens per analysis (prompt + completion)
-    MAX_TOKENS_PER_SESSION = 50000  # Example: 50,000 tokens per user session
-
     # --- Frontend/CORS Configuration ---
     CORS_ORIGINS = [
         'https://curam-ai.com.au',

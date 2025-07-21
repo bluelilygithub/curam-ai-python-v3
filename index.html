@@ -58,16 +58,6 @@
                         <h3>Select a Demo User</h3>
                         <p>Choose Sarah or Michael above to see their personalized property analytics</p>
                     </div>
-                    <div class="llm-usage-details" id="llmUsageDetails" style="display: none;">
-                        <h4>LLM Usage:</h4>
-                        <div class="usage-meter">
-                            <span id="questionTokens" class="token-count">Current Query: 0 tokens</span>
-                            <span id="sessionTokens" class="token-count">Session Total: 0 / 0 tokens</span>
-                            <div class="progress-bar-container">
-                                <div id="sessionProgressBar" class="progress-bar" style="width: 0%;"></div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="query-history">
@@ -104,19 +94,15 @@
         let currentUser = null;
         let demoUsers = [];
         let performanceChart = null;
-        let activityFeed = []; 
+        let activityFeed = []; // This array might not be strictly needed if logs are only prepended to DOM
         const API_BASE = 'https://curam-ai-python-v3-production.up.railway.app';
-        let eventSource = null; 
+        let eventSource = null; // Declare eventSource globally here.
 
         // --- Web Speech API Globals ---
+        // Ensure browser compatibility. Prefixed versions exist for older browsers.
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition = null;
         let isListening = false;
-
-        // --- NEW: Global variables for token display ---
-        let currentQueryTokens = 0;
-        let sessionTotalTokens = 0;
-        let maxSessionTokens = 0; // This will be loaded from API
         // --- END Web Speech API Globals ---
 
 
@@ -188,7 +174,7 @@
                 
                 await loadSystemStats();
                 setupPerformanceChart();
-                setupSpeechRecognition(); 
+                setupSpeechRecognition(); // Initialize speech recognition
 
                 console.log('✅ Application initialized successfully');
             } catch (error) {
@@ -211,15 +197,6 @@
                 try {
                     const logData = JSON.parse(event.data);
                     
-                    // NEW: Handle special 'token_update' action from backend
-                    if (logData.action === "token_update") { 
-                        currentQueryTokens = logData.current_query_tokens;
-                        sessionTotalTokens = logData.session_total_tokens;
-                        maxSessionTokens = logData.max_session_tokens;
-                        updateTokenDisplay(); // Update the UI with new token values
-                        return; // Do not process this as a regular log entry
-                    }
-
                     if (!logData.message) {
                         return;
                     }
@@ -305,8 +282,6 @@
                                 title = 'API Key Missing';
                             } else if (logData.message.includes("service not available")) {
                                 title = 'Service Unavailable';
-                            } else if (logData.message.includes("reached session token limit")) { // NEW: Token limit warning
-                                emoji = '🚫'; type = 'error'; title = 'Token Limit Reached';
                             }
                             break;
                         case 'ERROR':
@@ -351,7 +326,7 @@
 
             recognition = new SpeechRecognition();
             recognition.continuous = false;
-            recognition.interimResults = true; 
+            recognition.interimResults = true; // Set to true for live transcription
             recognition.lang = 'en-AU';
 
             recognition.onstart = () => {
@@ -359,7 +334,7 @@
                 document.getElementById('microphoneBtn').classList.add('listening');
                 document.getElementById('microphoneBtn').textContent = '🔴';
                 document.getElementById('customQuestion').placeholder = "Listening... speak now!";
-                document.getElementById('customQuestion').value = ""; 
+                document.getElementById('customQuestion').value = ""; // Clear previous question
                 addActivity('info', '🎙️', 'Voice Input', 'Microphone active. Waiting for your question...', { status: 'Listening' });
                 console.log('🎙️ Speech recognition started.');
             };
@@ -377,6 +352,7 @@
                     }
                 }
 
+                // Update the input field with either final or interim results
                 const customQuestionInput = document.getElementById('customQuestion');
                 customQuestionInput.value = finalTranscript || interimTranscript;
 
@@ -389,7 +365,7 @@
                     console.log('🗣️ Speech recognized (final):', finalTranscript);
                     
                     if (finalTranscript.trim().length > 0) {
-                        analyzeCustomQuestion(); 
+                        analyzeCustomQuestion(); // Automatically analyze the question
                     } else {
                         addActivity('warning', '🎙️', 'Voice Input', 'No significant speech captured. Please try again.', { status: 'No Speech Final' });
                         console.warn('⚠️ Final result was empty or too short.');
@@ -475,7 +451,7 @@
             } catch (error) {
                 console.error('❌ Error loading users from API:', error);
                 addActivity('error', '❌', 'Failed to Load Users', `API error: ${error.message}. Using fallback users.`, { status: 'Error' });
-                addFallbackUsers(); 
+                addFallbackUsers(); // Use fallback users if API fails
             }
         }
 
@@ -533,7 +509,7 @@
                 document.getElementById('userProfile').classList.add('loading');
                 document.getElementById('sectionTitle').textContent = '🔄 Loading user data...';
 
-                await loadUserStats(userId); // This now fetches max_session_tokens
+                await loadUserStats(userId);
                 renderPresetQuestions(userId);
                 
                 document.getElementById('customInputSection').style.display = 'flex';
@@ -557,11 +533,7 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Update global token variables from user stats
-                    sessionTotalTokens = data.data.stats.total_tokens_used;
-                    maxSessionTokens = data.data.stats.max_session_tokens; // Get limit from backend
-
-                    updateUserProfile(data.data); // This function will now call updateTokenDisplay
+                    updateUserProfile(data.data);
                     addActivity('success', '📈', 'User Stats Loaded', `Analytics loaded for ${userId}: ${data.data.stats.total_queries} queries, ${data.data.stats.avg_processing_time}s avg time`, { 
                         user: userId,
                         queries: data.data.stats.total_queries,
@@ -598,20 +570,9 @@
                         <div class="stat-label">Avg Time</div>
                     </div>
                 </div>
-                <div class="llm-usage-details" id="llmUsageDetails">
-                    <h4>LLM Usage:</h4>
-                    <div class="usage-meter">
-                        <span id="questionTokens" class="token-count">Current Query: 0 tokens</span>
-                        <span id="sessionTokens" class="token-count">Session Total: 0 / 0 tokens</span>
-                        <div class="progress-bar-container">
-                            <div id="sessionProgressBar" class="progress-bar" style="width: 0%;"></div>
-                        </div>
-                    </div>
-                </div>
             `;
 
             updateQueryHistory(userData.recent_queries);
-            updateTokenDisplay(); // NEW: Call to ensure token display is updated immediately after profile load
         }
 
         // Update query history display
@@ -665,7 +626,7 @@
         }
 
         // Render preset questions for current user
-        async function renderPresetQuestions(userId) { 
+        async function renderPresetQuestions(userId) { // Made async
             const container = document.getElementById('presetQuestions');
             container.innerHTML = `
                 <div class="loading">
@@ -678,28 +639,28 @@
                 const response = await fetch(`${API_BASE}/api/property/questions?user_id=${userId}`);
                 const data = await response.json();
 
-                container.innerHTML = ''; 
+                container.innerHTML = ''; // Clear loading spinner
                 
                 if (data.success && data.questions && data.questions.length > 0) {
                     data.questions.forEach(q => {
-                        const buttonWrapper = document.createElement('div'); 
-                        buttonWrapper.className = 'preset-btn-wrapper fade-in'; 
+                        const buttonWrapper = document.createElement('div'); // New wrapper for button + delete
+                        buttonWrapper.className = 'preset-btn-wrapper fade-in'; // Add a class for styling
 
                         const button = document.createElement('button');
-                        button.className = 'preset-btn'; 
+                        button.className = 'preset-btn'; // Base class
                         button.textContent = q.question;
                         button.onclick = () => analyzeQuestion(q.question);
                         
                         let typeLabel = '';
                         if (q.type === 'recent_user') {
                             typeLabel = ' (Recent)';
-                            button.classList.add('preset-btn-recent'); 
+                            button.classList.add('preset-btn-recent'); // Add a class for styling
                         } else if (q.type === 'popular_global') {
                             typeLabel = ' (Popular)';
-                            button.classList.add('preset-btn-popular'); 
+                            button.classList.add('preset-btn-popular'); // Add a class for styling
                         } else if (q.type === 'example') {
                             typeLabel = ' (Example)';
-                            button.classList.add('preset-btn-example'); 
+                            button.classList.add('preset-btn-example'); // Add a class for styling
                         }
 
                         const span = document.createElement('span');
@@ -707,26 +668,29 @@
                         span.textContent = typeLabel;
                         button.appendChild(span);
 
-                        buttonWrapper.appendChild(button); 
+                        buttonWrapper.appendChild(button); // Add button to wrapper
 
+                        // Add Delete Button for dynamic questions (recent_user or popular_global)
+                        // Only add if query_id is available, preventing deletion of hardcoded examples if they somehow get mixed in
                         if (q.type !== 'example' && q.query_id) { 
                             const deleteBtn = document.createElement('button');
                             deleteBtn.className = 'delete-preset-btn';
-                            deleteBtn.innerHTML = '&times;'; 
+                            deleteBtn.innerHTML = '&times;'; // '×' character
                             deleteBtn.title = `Delete "${q.question}"`;
                             deleteBtn.onclick = (event) => {
-                                event.stopPropagation(); 
+                                event.stopPropagation(); // Prevent button click from analyzing question
                                 if (confirm(`Are you sure you want to delete this question: "${q.question}"?`)) {
-                                    deleteQuestion(q.query_id); 
+                                    deleteQuestion(q.query_id); // Pass the query_id to delete
                                 }
                             };
                             buttonWrapper.appendChild(deleteBtn);
                         }
 
-                        container.appendChild(buttonWrapper); 
+                        container.appendChild(buttonWrapper); // Append the wrapper
                     });
                     addActivity('success', '❓', 'Questions Loaded', `Loaded ${data.questions.length} dynamic questions for ${userId}.`, { user: userId });
                 } else {
+                    // If no dynamic questions, fallback to a simple message and ensure custom input is visible
                     container.innerHTML = `
                         <div class="empty-state">
                             <span class="emoji">📝</span>
@@ -749,16 +713,14 @@
             }
         }
 
+        // --- THE analyzeQuestion FUNCTION GOES HERE ---
+        // This is the complete, corrected version of analyzeQuestion
         async function analyzeQuestion(question) {
             if (!currentUser) {
                 alert('Please select a user first');
                 return;
             }
 
-            // NEW: Reset current query tokens and update display at the start of analysis
-            currentQueryTokens = 0; 
-            updateTokenDisplay(); 
-            
             const user = demoUsers.find(u => u.user_id === currentUser);
 
             const resultsDiv = document.getElementById('results');
@@ -820,17 +782,16 @@
                                     <span><strong>User:</strong></span>
                                     <span>${currentUser}</span>
                                 </div>
-                                <div class="metadata-item">
-                                    <span><strong>Total Tokens:</strong></span>
-                                    <span>${data.total_tokens_used || 0}</span> </div>
                             </div>
                         </div>
                     `;
 
-                    await loadUserStats(currentUser); 
+                    await loadUserStats(currentUser);
                     await loadSystemStats();
                     
+                    // Clear input field after successful analysis
                     document.getElementById('customQuestion').value = ''; 
+                    // Refresh preset questions to show the newly asked one
                     renderPresetQuestions(currentUser); 
 
                     console.log(`✅ Analysis completed for ${currentUser}`);
@@ -858,6 +819,8 @@
                 `;
             }
         }
+        // --- END analyzeQuestion FUNCTION ---
+
 
         // Function to delete a question
         async function deleteQuestion(queryId) {
@@ -880,8 +843,8 @@
 
                 if (data.success) {
                     addActivity('success', '🗑️', 'Question Deleted', `Query ID ${queryId} removed.`, { query_id: queryId });
-                    renderPresetQuestions(currentUser); 
-                    loadUserStats(currentUser); 
+                    renderPresetQuestions(currentUser); // Refresh the list
+                    loadUserStats(currentUser); // Refresh history/stats
                 } else {
                     throw new Error(data.error || 'Failed to delete question.');
                 }
@@ -996,41 +959,9 @@
                 
                 performanceChart.data.labels = labels;
                 performanceChart.data.datasets[0].data = data;
-                performanceChart.update('none'); 
+                performanceChart.update('none'); // No animation for better performance
             }
         }
-
-        // NEW: Function to update token display in the UI
-        function updateTokenDisplay() {
-            const questionTokensElem = document.getElementById('questionTokens');
-            const sessionTokensElem = document.getElementById('sessionTokens');
-            const sessionProgressBar = document.getElementById('sessionProgressBar');
-            const llmUsageDetailsPanel = document.getElementById('llmUsageDetails');
-
-            if (questionTokensElem) {
-                questionTokensElem.textContent = `Current Query: ${currentQueryTokens} tokens`;
-            }
-            
-            if (sessionTokensElem && sessionProgressBar) {
-                sessionTokensElem.textContent = `Session Total: ${sessionTotalTokens} / ${maxSessionTokens} tokens`;
-                let percentage = (sessionTotalTokens / maxSessionTokens) * 100;
-                if (isNaN(percentage) || !isFinite(percentage)) percentage = 0; 
-                percentage = Math.min(percentage, 100); 
-                sessionProgressBar.style.width = `${percentage}%`;
-
-                sessionProgressBar.classList.remove('warning', 'critical');
-                if (percentage > 70 && percentage <= 90) {
-                    sessionProgressBar.classList.add('warning');
-                } else if (percentage > 90) {
-                    sessionProgressBar.classList.add('critical');
-                }
-            }
-
-            if (llmUsageDetailsPanel) {
-                llmUsageDetailsPanel.style.display = 'block'; // Ensure panel is visible
-            }
-        }
-
 
         // Error handling
         function showError(message) {

@@ -1,4 +1,4 @@
-# models.py (Updated)
+# models.py (Create this file)
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float
 from sqlalchemy.ext.declarative import declarative_base
@@ -25,9 +25,6 @@ class Query(Base):
     llm_provider = Column(String(50)) # e.g., 'claude', 'gemini'
     confidence_score = Column(Float) # LLM's confidence or internal score
     user_id = Column(String(100), default='anonymous') # ID of the user who made the query
-    
-    # NEW: Field to store the total tokens used for this query
-    total_tokens_used = Column(Integer, default=0) # Total tokens (prompt + completion) for the query
 
     def __repr__(self):
         """String representation for debugging."""
