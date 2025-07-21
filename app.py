@@ -14,6 +14,14 @@ import queue
 import json
 import threading
 from datetime import datetime
+from flask import Flask, request, jsonify, Response, stream_with_context # Ensure Response and stream_with_context are imported
+
+# Set up logging FIRST, before using logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__) # Define logger for this module here!
+
+# Queue for real-time log messages
+log_queue = queue.Queue()
 
 class QueueHandler(logging.Handler):
     """
@@ -22,26 +30,23 @@ class QueueHandler(logging.Handler):
     """
     def emit(self, record):
         try:
-            # Format the log record into a dictionary
-            # Includes timestamp for client-side display consistency
             log_entry = {
                 "timestamp": datetime.fromtimestamp(record.created).strftime('%Y-%m-%d %H:%M:%S'),
                 "level": record.levelname,
                 "message": self.format(record),
-                "name": record.name # Logger name (e.g., __main__, services.llm_service)
+                "name": record.name
             }
-            # Put the JSON string into the queue
             log_queue.put(json.dumps(log_entry))
         except Exception:
             self.handleError(record)
 
 # --- Attach the custom handler to the root logger ---
 # This ensures all logs from Flask, your services, etc., go into the queue.
-# Place this after `logging.basicConfig(level=logging.INFO)`
+# It should be called after logging.basicConfig and logger is defined.
 logging.getLogger().addHandler(QueueHandler())
-logger.info("✅ Live log stream handler initialized and attached to root logger.")
+logger.info("✅ Live log stream handler initialized and attached to root logger.") # This line will now work
 
-# Import professional services
+# Import professional services (these can stay where they are)
 from config import Config
 from services import LLMService, PropertyAnalysisService
 from enhanced_database import PropertyDatabase
