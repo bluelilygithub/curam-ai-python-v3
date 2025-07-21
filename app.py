@@ -10,7 +10,36 @@ import os
 import sys
 import logging
 import time
+import queue
+import json
+import threading
 from datetime import datetime
+
+class QueueHandler(logging.Handler):
+    """
+    A custom logging handler that puts log records into a queue.
+    These records can then be picked up by an SSE endpoint.
+    """
+    def emit(self, record):
+        try:
+            # Format the log record into a dictionary
+            # Includes timestamp for client-side display consistency
+            log_entry = {
+                "timestamp": datetime.fromtimestamp(record.created).strftime('%Y-%m-%d %H:%M:%S'),
+                "level": record.levelname,
+                "message": self.format(record),
+                "name": record.name # Logger name (e.g., __main__, services.llm_service)
+            }
+            # Put the JSON string into the queue
+            log_queue.put(json.dumps(log_entry))
+        except Exception:
+            self.handleError(record)
+
+# --- Attach the custom handler to the root logger ---
+# This ensures all logs from Flask, your services, etc., go into the queue.
+# Place this after `logging.basicConfig(level=logging.INFO)`
+logging.getLogger().addHandler(QueueHandler())
+logger.info("✅ Live log stream handler initialized and attached to root logger.")
 
 # Import professional services
 from config import Config
@@ -636,3 +665,36 @@ if __name__ == '__main__':
     logger.info(f"👥 User Switching: Enabled")
     
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
+
+
+
+
+@app.route('/stream_logs')
+def stream_logs():
+    """
+    SSE endpoint to stream real-time log messages to connected clients.
+    """
+    def generate():
+        while True:
+            try:
+                # Get log message from queue with a timeout.
+                # A timeout prevents the generator from blocking indefinitely if no logs.
+                # A small timeout (e.g., 1 second) is good practice.
+                log_message = log_queue.get(timeout=1)
+                yield f"data: {log_message}\n\n"
+            except queue.Empty:
+                # If the queue is empty, send a "keep-alive" comment or empty data.
+                # This prevents the client's connection from timing out.
+                # An empty JSON object `data: {}\n\n` is also a valid keep-alive signal.
+                yield "data: {}\n\n"
+            except Exception as e:
+                # Log any errors occurring within the generator itself
+                logger.error(f"Error in log stream generator: {e}")
+                # Optionally, send an error message to the client through the stream
+                yield f"data: {json.dumps({'level': 'ERROR', 'message': f'Server stream error: {e}'})}\n\n"
+            
+            # Small delay to prevent tight looping and high CPU usage if logs are very frequent
+            time.sleep(0.05) # 50 milliseconds
+
+    # Return the response with the event-stream mimetype
+    return Response(stream_with_context(generate()), mimetype="text/event-stream")

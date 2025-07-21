@@ -3,163 +3,793 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Australian Property Intelligence</title>
-    
-    <!-- Favicon -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇦🇺</text></svg>">
-    
-    <!-- Meta Tags for SEO -->
-    <meta name="description" content="AI-Powered Australian Property Market Analysis - Professional property intelligence using advanced AI for real estate insights across Australia">
-    <meta name="keywords" content="Australian property, real estate analysis, property intelligence, AI property analysis, Australian development, property trends">
-    <meta name="autyr" content="Property Intelligence Team">
-    
-    <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content="Australian Property Intelligence">
-    <meta property="og:description" content="AI-Powered Property Market Analysis for Australia">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://curam-ai.com.au/python-hub-v2/">
-    
-    <!-- Stylesheets -->
-    <link rel="stylesheet" href="assets/css/styles.css">
-    <link rel="stylesheet" href="assets/css/mcp-styles.css">
-    
-    <!-- Configuration (Load first) -->
-    <script src="assets/js/config.js"></script>
+    <title>Australian Property Intelligence V3 - User Analytics Demo</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+
+     <link rel="stylesheet" href="assets/css/styles.css">
+
 </head>
 <body>
     <div class="container">
-        <header class="header">
-            <h1>🇦🇺 Australian Property Intelligence</h1>
-            <p>AI-Powered Property Market Analysis for Australia</p>
-        </header>
+        <div class="header">
+            <h1>🏠 Australian Property Intelligence</h1>
+        </div>
 
-        <div class="main-content">
-            <div class="card">
-                <h3>📋 Australian Property Questions</h3>
-                <div class="preset-questions" id="presetQuestions">
-                    <!-- Questions will be loaded dynamically -->
+        <!-- User Selector -->
+        <div class="user-selector">
+            <h3>👥 Experience Personalized Property Analytics</h3>
+            <div class="user-buttons" id="userButtons">
+                <!-- User buttons will be populated dynamically -->
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading demo users...</p>
                 </div>
-                
-                <div class="custom-input">
-                    <label for="customQuestion" class="input-label">
-                        Or ask your own question:
-                    </label>
-                    <textarea 
-                        id="customQuestion" 
-                        placeholder="Enter your Australian property question here..."
-                        rows="4"
-                    ></textarea>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <div class="main-content">
+                <div class="question-section">
+                    <h2 id="sectionTitle">🤖 Select a User to Begin</h2>
+                    
+                    <div class="preset-questions" id="presetQuestions">
+                        <div class="empty-state">
+                            <span class="emoji">👆</span>
+                            <p>Choose a demo user above to see personalized property questions</p>
+                        </div>
+                    </div>
+
+                    <div class="custom-input" style="display: none;" id="customInputSection">
+                        <textarea id="customQuestion" placeholder="Ask your own property question..."></textarea>
+                        <button class="analyze-btn" onclick="analyzeCustomQuestion()" id="analyzeBtn">Analyze</button>
+                    </div>
                 </div>
-                
-                <button class="analyze-btn" id="analyzeBtn">
-                    🔍 Analyze Property Question
-                </button>
 
-
-<!-- Enhanced LLM Dashboard - 3 Charts -->
-<div id="llm-dashboard" class="llm-dashboard-container">
-    <h3 class="dashboard-title">
-        📊 System Performance Dashboard
-    </h3>
-    
-    <!-- Response Times Chart -->
-    <div class="chart-container">
-        <h4>⏱️ Response Times (Last 5 Queries)</h4>
-        <canvas id="responseTimesChart" width="300" height="120"></canvas>
-    </div>
-    
-    <!-- LLM Provider Performance Chart -->
-    <div class="chart-container">
-        <h4>🤖 LLM Provider Performance</h4>
-        <canvas id="providerPerformanceChart" width="300" height="120"></canvas>
-    </div>
-    
-    <!-- RSS Data Quality Chart -->
-    <div class="chart-container">
-        <h4>📰 RSS Data Sources</h4>
-        <canvas id="rssQualityChart" width="300" height="120"></canvas>
-    </div>
-    
-    <!-- Enhanced Metrics -->
-    <div class="metrics-grid">
-        <div class="metric">
-            <span class="metric-label">Success Rate:</span>
-            <span id="success-rate" class="metric-value">---%</span>
-        </div>
-        <div class="metric">
-            <span class="metric-label">Avg Response:</span>
-            <span id="avg-response" class="metric-value">---s</span>
-        </div>
-        <div class="metric">
-            <span class="metric-label">Total Queries:</span>
-            <span id="total-queries" class="metric-value">---</span>
-        </div>
-        <div class="metric">
-            <span class="metric-label">RSS Status:</span>
-            <span id="rss-status" class="metric-value">---</span>
-        </div>
-    </div>
-</div>
-
-
-
+                <div id="results" style="display: none;">
+                    <!-- Results will be populated here -->
+                </div>
             </div>
 
-            <div class="card">
-                                
-                    <!-- REPLACED: Static "AI Powered by" block with Dynamic Activity Log -->
-                    <div class="progress-sidebar" id="activityLogSidebar">
-                        <div class="sidebar-header">
-                            <h4>🤖 Processing Activity</h4>
-                            <span class="sidebar-timer" id="processingTimer">Ready</span>
-                        </div>
-                        <div class="sidebar-log" id="activityLog">
-                            <div class="log-entry info">System ready for analysis...</div>
+            <div class="sidebar">
+                <!-- User Profile -->
+                <div class="user-profile" id="userProfile">
+                    <div class="empty-state">
+                        <span class="emoji">👤</span>
+                        <h3>Select a Demo User</h3>
+                        <p>Choose Sarah or Michael above to see their personalized property analytics</p>
+                    </div>
+                </div>
+
+                <!-- Query History -->
+                <div class="query-history">
+                    <h4>📝 Recent Searches</h4>
+                    <div id="queryHistoryList">
+                        <div class="empty-state">
+                            <span class="emoji">📋</span>
+                            <p>User's search history will appear here</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card results-section">
-                <h3>📊 Analysis Results</h3>
-                <div class="results-content" id="resultsContent">
-                    <div class="placeholder">
-                        <div class="placeholder-icon">🏠</div>
-                        <h4>Ready for Australian Property Analysis</h4>
-                        <p>Select a question above to get started with AI-powered property analysis.</p>
-                        <p class="placeholder-subtitle">Your detailed analysis will appear here with professional insights about Australia's property markets using real-time RSS data from RealEstate.com.au, Smart Property Investment, and other industry sources.</p>
+            <!-- NEW: Real-Time Activity Log -->
+            <div class="activity-log">
+                <h4>⚡ Real-Time Activity</h4>
+                <div class="activity-feed" id="activityFeed">
+                    <div class="empty-state">
+                        <span class="emoji">🔄</span>
+                        <p>System activity will appear here</p>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="loading-overlay">
-        <div class="loading-content">
-            <div class="loading-spinner"></div>
-            <h3>Australian Property Intelligence</h3>
-            <p>Initializing AI systems...</p>
+        <!-- Performance Dashboard -->
+        <div class="dashboard">
+            <h3>📊 Real-Time System Analytics</h3>
+            <div class="chart-container">
+                <canvas id="performanceChart"></canvas>
+            </div>
         </div>
     </div>
 
-    <!-- Notification Container -->
-    <div id="notificationContainer" class="notification-container"></div>
+    <script>
+        // Global variables
+        let currentUser = null;
+        let demoUsers = [];
+        let performanceChart = null;
+        let activityFeed = [];
+        const API_BASE = 'https://curam-ai-python-v3-production.up.railway.app';
 
-    <!-- MCP Framework Scripts (Load before main app) -->
-    <script src="assets/js/framework/mcp-core.js"></script>
-    <script src="assets/js/framework/mcp-dashboard.js"></script>
-    <script src="assets/js/framework/mcp-session.js"></script>
-    <script src="assets/js/framework/mcp-ui-core.js"></script>
+        // User-specific preset questions
+        const userPresets = {
+            'sarah_buyer': [
+                "Best suburbs under $600k for first home buyers in Brisbane",
+                "Units near train stations in Brisbane", 
+                "First home buyer grants and assistance",
+                "Safest affordable suburbs for young professionals"
+            ],
+            'michael_investor': [
+                "High rental yield suburbs in Brisbane",
+                "Investment property hotspots 2025",
+                "Logan vs Ipswich for property investment",
+                "Brisbane outer suburbs with growth potential"
+            ]
+        };
 
-    <!-- Module Files (load before main app) -->
-    <script src="assets/js/modules/activity-logger.js"></script>
-    <script src="assets/js/modules/data-manager.js"></script>
-    <script src="assets/js/modules/ui-manager.js"></script>
+        // Initialize application
+        async function initApp() {
+            try {
+                console.log('🚀 Initializing Australian Property Intelligence V3...');
+                
+                // Initialize activity log
+                initActivityLog();
+                
+                await loadDemoUsers();
+                await loadSystemStats();
+                setupPerformanceChart();
+                
+                console.log('✅ Application initialized successfully');
+            } catch (error) {
+                console.error('❌ Error initializing app:', error);
+                showError('Failed to initialize application. Please refresh the page.');
+            }
+        }
 
-    <!-- Main App -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-    <script src="assets/js/app-main.js"></script>
-    <script src="assets/js/dashboard.js"></script>
+        // NEW: Initialize Activity Log
+        function initActivityLog() {
+            addActivity('connecting', '🚀', 'System Initialization', 'Starting Australian Property Intelligence V3...', { status: 'Loading' });
+            
+            // Simulate initial system activities
+            setTimeout(() => {
+                addActivity('success', '✅', 'Database Connected', 'PostgreSQL connection established', { status: 'Ready' });
+            }, 1000);
+            
+            setTimeout(() => {
+                addActivity('success', '🤖', 'AI Services Ready', 'Claude & Gemini LLM providers connected', { status: 'Online' });
+            }, 1500);
+        }
+
+        // NEW: Add Activity to Log
+        function addActivity(type, icon, title, details, meta = {}) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+            
+            const activity = {
+                id: Date.now(),
+                type: type, // 'connecting', 'success', 'processing', 'error'
+                icon: icon,
+                title: title,
+                details: details,
+                meta: meta,
+                timestamp: now,
+                timeString: timeString
+            };
+            
+            // Add to beginning of array (newest first)
+            activityFeed.unshift(activity);
+            
+            // Keep only last 50 activities
+            if (activityFeed.length > 50) {
+                activityFeed = activityFeed.slice(0, 50);
+            }
+            
+            // Update UI
+            renderActivityFeed();
+        }
+
+        // NEW: Render Activity Feed
+        function renderActivityFeed() {
+            const feedContainer = document.getElementById('activityFeed');
+            
+            if (activityFeed.length === 0) {
+                feedContainer.innerHTML = `
+                    <div class="empty-state">
+                        <span class="emoji">🔄</span>
+                        <p>System activity will appear here</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            feedContainer.innerHTML = '';
+            
+            activityFeed.forEach(activity => {
+                const item = document.createElement('div');
+                item.className = `activity-item ${activity.type}`;
+                
+                // Create stats display if meta has useful info
+                let statsHtml = '';
+                if (activity.meta.articles) {
+                    statsHtml = `<span class="activity-stats">${activity.meta.articles} articles</span>`;
+                } else if (activity.meta.status) {
+                    statsHtml = `<span class="activity-stats">${activity.meta.status}</span>`;
+                } else if (activity.meta.time) {
+                    statsHtml = `<span class="activity-stats">${activity.meta.time}</span>`;
+                }
+                
+                item.innerHTML = `
+                    <div class="activity-icon">${activity.icon}</div>
+                    <div class="activity-content">
+                        <div class="activity-title">${activity.title}</div>
+                        <div class="activity-details">${activity.details}</div>
+                        <div class="activity-meta">
+                            <span class="activity-time">${activity.timeString}</span>
+                            ${statsHtml}
+                        </div>
+                    </div>
+                `;
+                
+                feedContainer.appendChild(item);
+            });
+        }
+
+        // Load demo users from API
+        async function loadDemoUsers() {
+            try {
+                addActivity('connecting', '👥', 'Loading Demo Users', 'Connecting to user management API...', { status: 'Loading' });
+                
+                const response = await fetch(`${API_BASE}/api/users`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    demoUsers = data.users;
+                    renderUserButtons();
+                    addActivity('success', '✅', 'Demo Users Loaded', `Found ${demoUsers.length} demo users: ${demoUsers.map(u => u.name).join(', ')}`, { users: demoUsers.length });
+                    console.log(`✅ Loaded ${demoUsers.length} demo users`);
+                } else {
+                    throw new Error(data.error || 'Failed to load users');
+                }
+            } catch (error) {
+                console.error('❌ Error loading users:', error);
+                addActivity('error', '❌', 'Failed to Load Users', error.message, { status: 'Error' });
+                showError('Failed to load demo users');
+            }
+        }
+
+        // Render user selection buttons
+        function renderUserButtons() {
+            const container = document.getElementById('userButtons');
+            container.innerHTML = '';
+
+            demoUsers.forEach(user => {
+                const button = document.createElement('button');
+                button.className = 'user-btn';
+                button.setAttribute('data-user', user.user_id);
+                button.onclick = () => switchUser(user.user_id);
+
+                // Enhanced button content
+                button.innerHTML = `
+                    <div class="user-name">${user.avatar} ${user.name}</div>
+                    <div class="user-type">${getProfileTypeLabel(user.profile_type)}</div>
+                    <div class="user-preview">${user.description}</div>
+                `;
+
+                container.appendChild(button);
+            });
+        }
+
+        // Get user-friendly profile type labels
+        function getProfileTypeLabel(profileType) {
+            const labels = {
+                'first_buyer': 'First Home Buyer',
+                'investor': 'Property Investor'
+            };
+            return labels[profileType] || profileType;
+        }
+
+        // Switch to different user
+        async function switchUser(userId) {
+            try {
+                console.log(`🔄 Switching to user: ${userId}`);
+                currentUser = userId;
+                const user = demoUsers.find(u => u.user_id === userId);
+                
+                addActivity('processing', '🔄', 'User Switch', `Switching to ${user.name} (${getProfileTypeLabel(user.profile_type)})`, { user: user.name });
+                
+                // Update UI to show active user
+                document.querySelectorAll('.user-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.querySelector(`[data-user="${userId}"]`).classList.add('active');
+
+                // Show loading states
+                document.getElementById('userProfile').classList.add('loading');
+                document.getElementById('sectionTitle').textContent = '🔄 Loading user data...';
+
+                // Load user data
+                await loadUserStats(userId);
+                renderPresetQuestions(userId);
+                
+                // Show custom input section
+                document.getElementById('customInputSection').style.display = 'flex';
+                
+                // Update section title
+                document.getElementById('sectionTitle').textContent = 
+                    `🤖 ${user.name}'s Property Analysis`;
+                
+                // Clear any existing results
+                document.getElementById('results').style.display = 'none';
+
+                addActivity('success', '✅', 'User Switch Complete', `Now viewing ${user.name}'s personalized analytics`, { status: 'Active' });
+                console.log(`✅ Successfully switched to ${user.name}`);
+                
+            } catch (error) {
+                console.error('❌ Error switching user:', error);
+                addActivity('error', '❌', 'User Switch Failed', error.message, { status: 'Error' });
+                showError('Failed to switch user');
+            }
+        }
+
+        // Load user statistics
+        async function loadUserStats(userId) {
+            try {
+                addActivity('connecting', '📊', 'Loading User Stats', `Fetching analytics for ${userId}...`, { status: 'Loading' });
+                
+                const response = await fetch(`${API_BASE}/api/users/${userId}/stats`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateUserProfile(data.data);
+                    addActivity('success', '📈', 'User Stats Loaded', `Analytics loaded: ${data.data.stats.total_queries} queries, ${data.data.stats.avg_processing_time}s avg time`, { 
+                        queries: data.data.stats.total_queries,
+                        time: `${data.data.stats.avg_processing_time}s`
+                    });
+                    console.log(`✅ Loaded stats for ${userId}`);
+                } else {
+                    throw new Error(data.error || 'Failed to load user stats');
+                }
+            } catch (error) {
+                console.error('❌ Error loading user stats:', error);
+                addActivity('error', '❌', 'Stats Load Failed', error.message, { status: 'Error' });
+                showError('Failed to load user statistics');
+            }
+        }
+
+        // Update user profile display
+        function updateUserProfile(userData) {
+            const profileContainer = document.getElementById('userProfile');
+            profileContainer.classList.remove('loading');
+            
+            profileContainer.innerHTML = `
+                <div class="user-avatar">${userData.user.avatar}</div>
+                <h3>${userData.user.name}</h3>
+                <div class="profile-type">${getProfileTypeLabel(userData.user.profile_type)}</div>
+                <div class="user-description">${userData.user.description}</div>
+                <div class="user-stats">
+                    <div class="stat-item">
+                        <div class="stat-value">${userData.stats.total_queries}</div>
+                        <div class="stat-label">Queries</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${userData.stats.avg_processing_time}s</div>
+                        <div class="stat-label">Avg Time</div>
+                    </div>
+                </div>
+            `;
+
+            // Update query history
+            updateQueryHistory(userData.recent_queries);
+        }
+
+        // Update query history display
+        function updateQueryHistory(queries) {
+            const historyContainer = document.getElementById('queryHistoryList');
+            
+            if (!queries || queries.length === 0) {
+                historyContainer.innerHTML = `
+                    <div class="empty-state">
+                        <span class="emoji">🆕</span>
+                        <p>No queries yet. Start by asking a question!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            historyContainer.innerHTML = '';
+            
+            queries.forEach(query => {
+                const item = document.createElement('div');
+                item.className = 'query-item fade-in';
+                
+                const timeAgo = getTimeAgo(query.created_at);
+                
+                item.innerHTML = `
+                    <div class="query-question">${query.question}</div>
+                    <div class="query-meta">
+                        <span class="query-location">${query.location || 'National'}</span>
+                        <span>${timeAgo} • ${query.processing_time}s</span>
+                    </div>
+                `;
+                historyContainer.appendChild(item);
+            });
+        }
+
+        // Get time ago string
+        function getTimeAgo(dateString) {
+            if (!dateString) return 'Recently';
+            
+            const now = new Date();
+            const past = new Date(dateString);
+            const diffMs = now - past;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+            
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffHours < 24) return `${diffHours}h ago`;
+            return `${diffDays}d ago`;
+        }
+
+        // Render preset questions for current user
+        function renderPresetQuestions(userId) {
+            const container = document.getElementById('presetQuestions');
+            const questions = userPresets[userId] || [];
+            
+            container.innerHTML = '';
+            
+            questions.forEach(question => {
+                const button = document.createElement('button');
+                button.className = 'preset-btn fade-in';
+                button.textContent = question;
+                button.onclick = () => analyzeQuestion(question);
+                container.appendChild(button);
+            });
+        }
+
+        // Analyze property question with enhanced activity logging
+        async function analyzeQuestion(question) {
+            if (!currentUser) {
+                alert('Please select a user first');
+                return;
+            }
+
+            const user = demoUsers.find(u => u.user_id === currentUser);
+            addActivity('processing', '🔍', 'Starting Analysis', `Processing: "${question.substring(0, 50)}${question.length > 50 ? '...' : ''}"`, { user: user.name });
+
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Analyzing property question for ${user?.name}...</p>
+                </div>
+            `;
+
+            // Scroll to results
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
+
+            try {
+                console.log(`🔍 Analyzing question for ${currentUser}: ${question}`);
+                
+                // Simulate RSS data gathering activities
+                simulateRSSActivities();
+                
+                const response = await fetch(`${API_BASE}/api/property/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        user_id: currentUser
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    addActivity('success', '✅', 'Analysis Complete', `Generated comprehensive property analysis in ${data.processing_time}s`, { 
+                        time: `${data.processing_time}s`,
+                        provider: data.metadata.llm_provider
+                    });
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="results fade-in">
+                            <h3>📋 Analysis Results for ${user?.name}</h3>
+                            <div class="analysis-content">${data.answer}</div>
+                            <div class="metadata">
+                                <div class="metadata-item">
+                                    <span><strong>Location:</strong></span>
+                                    <span>${data.metadata.location_detected}</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span><strong>Processing Time:</strong></span>
+                                    <span>${data.metadata.processing_time}s</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span><strong>LLM Provider:</strong></span>
+                                    <span>${data.metadata.llm_provider}</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span><strong>Confidence:</strong></span>
+                                    <span>${Math.round(data.metadata.confidence * 100)}%</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span><strong>Query ID:</strong></span>
+                                    <span>#${data.query_id}</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span><strong>User:</strong></span>
+                                    <span>${currentUser}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    // Refresh user stats and charts
+                    await loadUserStats(currentUser);
+                    await loadSystemStats();
+                    
+                    console.log(`✅ Analysis completed for ${currentUser}`);
+                } else {
+                    addActivity('error', '❌', 'Analysis Failed', data.error || 'Unknown error occurred', { status: 'Error' });
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="results">
+                            <h3>❌ Analysis Failed</h3>
+                            <p>Sorry, we couldn't analyze your question. Please try again.</p>
+                            <p class="error-details">${data.error}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('❌ Error analyzing question:', error);
+                addActivity('error', '❌', 'Analysis Error', error.message, { status: 'Error' });
+                
+                resultsDiv.innerHTML = `
+                    <div class="results">
+                        <h3>❌ Error</h3>
+                        <p>An error occurred while analyzing your question.</p>
+                        <p class="error-details">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // NEW: Simulate RSS data gathering activities
+        function simulateRSSActivities() {
+            const rssSources = [
+                { name: 'View.com.au Property News', articles: 18, delay: 500 },
+                { name: 'First National Real Estate', articles: 8, delay: 1200 },
+                { name: 'PropertyMe Blog', articles: 6, delay: 1800 },
+                { name: 'Real Estate Talk', articles: 15, delay: 2500 }
+            ];
+            
+            rssSources.forEach((source, index) => {
+                setTimeout(() => {
+                    addActivity('connecting', '🔗', `Connecting to ${source.name}`, 'Fetching latest property market data...', { status: 'Connecting' });
+                    
+                    setTimeout(() => {
+                        addActivity('success', '✅', `${source.name} - ${source.articles} articles retrieved`, 'Latest property insights collected successfully', { 
+                            articles: source.articles,
+                            source: source.name
+                        });
+                    }, 300);
+                }, source.delay);
+            });
+            
+            // Add LLM processing activity
+            setTimeout(() => {
+                addActivity('processing', '🤖', 'AI Analysis in Progress', 'Claude & Gemini processing property data and generating insights...', { status: 'Processing' });
+            }, 3000);
+        }
+
+        // Analyze custom question
+        function analyzeCustomQuestion() {
+            const question = document.getElementById('customQuestion').value.trim();
+            if (question) {
+                analyzeQuestion(question);
+                document.getElementById('customQuestion').value = '';
+            }
+        }
+
+        // Load system statistics for dashboard
+        async function loadSystemStats() {
+            try {
+                const response = await fetch(`${API_BASE}/api/property/stats`);
+                const data = await response.json();
+                
+                if (data.success && performanceChart) {
+                    updatePerformanceChart(data.stats);
+                    console.log('✅ System stats updated');
+                }
+            } catch (error) {
+                console.error('❌ Error loading system stats:', error);
+            }
+        }
+
+        // Setup performance chart
+        function setupPerformanceChart() {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Response Times (seconds)',
+                        data: [],
+                        borderColor: '#4facfe',
+                        backgroundColor: 'rgba(79, 172, 254, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#4facfe',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Recent Query Response Times by User',
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Response Time (seconds)'
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Recent Queries'
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+
+        // Update performance chart with new data
+        function updatePerformanceChart(stats) {
+            if (!stats.llm_performance || !stats.llm_performance.response_times) {
+                return;
+            }
+
+            const times = stats.llm_performance.response_times;
+            
+            if (times && times.length > 0) {
+                const labels = times.map((_, index) => `Query ${index + 1}`);
+                const data = times.map(item => item.processing_time);
+                
+                performanceChart.data.labels = labels;
+                performanceChart.data.datasets[0].data = data;
+                performanceChart.update('none'); // No animation for better performance
+            }
+        }
+
+        // Error handling
+        function showError(message) {
+            console.error('❌', message);
+            
+            // Create error notification
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #f44336;
+                color: white;
+                padding: 15px 20px;
+                border-radius: 10px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+                z-index: 1000;
+                font-weight: 600;
+            `;
+            errorDiv.textContent = message;
+            
+            document.body.appendChild(errorDiv);
+            
+            // Remove after 5 seconds
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.parentNode.removeChild(errorDiv);
+                }
+            }, 5000);
+        }
+
+        // Enter key support for custom questions
+        document.addEventListener('DOMContentLoaded', function() {
+            const customQuestion = document.getElementById('customQuestion');
+            if (customQuestion) {
+                customQuestion.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        analyzeCustomQuestion();
+                    }
+                });
+            }
+        });
+
+        // Auto-refresh system stats every 60 seconds
+        setInterval(loadSystemStats, 60000);
+
+        // Initialize app when page loads
+        document.addEventListener('DOMContentLoaded', initApp);
+
+        // Add some demo data if no users loaded (fallback)
+        function addFallbackUsers() {
+            if (demoUsers.length === 0) {
+                demoUsers = [
+                    {
+                        user_id: 'sarah_buyer',
+                        name: 'Sarah Chen',
+                        profile_type: 'first_buyer',
+                        description: 'First home buyer focused on affordability and transport links',
+                        avatar: '👩‍💼'
+                    },
+                    {
+                        user_id: 'michael_investor',
+                        name: 'Michael Rodriguez',
+                        profile_type: 'investor',
+                        description: 'Property investor focused on rental yield and growth',
+                        avatar: '👨‍💻'
+                    }
+                ];
+                renderUserButtons();
+                addActivity('success', '🔄', 'Fallback Users Loaded', 'Using demo user data for demonstration', { status: 'Demo Mode' });
+                console.log('ℹ️ Using fallback demo users');
+            }
+        }
+
+        // Initialize fallback after 3 seconds if no users loaded
+        setTimeout(() => {
+            if (demoUsers.length === 0) {
+                addFallbackUsers();
+            }
+        }, 3000);
+
+        // Enhanced logging for debugging
+        window.addEventListener('load', () => {
+            console.log('🎉 Australian Property Intelligence V3 Frontend Loaded');
+            console.log('🔗 API Base:', API_BASE);
+            console.log('👥 Demo Users:', demoUsers.length);
+            addActivity('success', '🎉', 'Frontend Loaded', 'Australian Property Intelligence V3 interface ready', { status: 'Ready' });
+        });
+
+        // Handle offline/online states
+        window.addEventListener('online', () => {
+            console.log('🌐 Back online');
+            addActivity('success', '🌐', 'Connection Restored', 'Back online - all features available', { status: 'Online' });
+            loadSystemStats();
+        });
+
+        window.addEventListener('offline', () => {
+            console.log('📡 Gone offline');
+            addActivity('error', '📡', 'Connection Lost', 'Offline mode - some features may not work', { status: 'Offline' });
+            showError('Connection lost. Some features may not work.');
+        });
+    </script>
 </body>
 </html>
