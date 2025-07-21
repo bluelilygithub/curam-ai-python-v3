@@ -252,6 +252,35 @@ def get_user_specific_default_questions(user_id: str) -> list:
     }
     return user_defaults.get(user_id, Config.DEFAULT_EXAMPLE_QUESTIONS)
 
+# --- Activity Log Management Functions ---
+def clear_activity_log():
+    """
+    Clears the activity log queue for a fresh start with new questions.
+    This ensures users only see logs relevant to their current analysis.
+    """
+    global log_queue
+    # Clear the queue by getting all existing items
+    cleared_count = 0
+    try:
+        while not log_queue.empty():
+            log_queue.get_nowait()
+            cleared_count += 1
+    except queue.Empty:
+        pass
+    
+    # Send a clear signal to frontend
+    clear_signal = {
+        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "level": "SYSTEM",
+        "message": "🔄 Activity log cleared for new question",
+        "name": "system",
+        "action": "clear_log"  # Special action for frontend
+    }
+    log_queue.put(json.dumps(clear_signal))
+    
+    if cleared_count > 0:
+        logger.debug(f"Cleared {cleared_count} old log entries from activity log")
+
 # ================================
 # MAIN API ROUTES
 # These are the primary endpoints for the frontend application.
@@ -484,6 +513,10 @@ async def analyze_property_question(): # Changed to async
                 'success': False,
                 'error': 'Property analysis service not available.'
             }), 500
+        
+        # ✨ CLEAR ACTIVITY LOG FOR NEW QUESTION
+        clear_activity_log()
+        logger.info(f"🔄 Activity log cleared for new question from user '{user_id}'")
         
         logger.info(f"🔍 Processing property question for user '{user_id}': '{question[:70]}{'...' if len(question) > 70 else ''}'")
         start_time = time.time()
@@ -766,8 +799,28 @@ def get_property_stats():
         }), 500
 
 # ================================
-# DEBUG ENDPOINT (TEMPORARY)
+# ACTIVITY LOG MANAGEMENT ENDPOINTS
 # ================================
+
+@app.route('/api/logs/clear', methods=['POST'])
+def clear_activity_log_endpoint():
+    """
+    Manual endpoint to clear the activity log.
+    Can be called by frontend before starting new questions.
+    """
+    try:
+        clear_activity_log()
+        return jsonify({
+            'success': True,
+            'message': 'Activity log cleared successfully',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Failed to clear activity log: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/debug/queries')
 def debug_queries():
