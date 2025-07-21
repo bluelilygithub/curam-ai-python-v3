@@ -878,3 +878,33 @@ if __name__ == '__main__':
         # will handle running the application, so we don't need app.run() here.
         # The 'pass' statement simply means do nothing if not in debug mode.
         pass
+
+
+
+@app.route('/debug/queries')
+def debug_queries():
+    """Temporary endpoint to see what's in the database"""
+    if not services['database']:
+        return {"error": "Database not available"}
+    
+    try:
+        # Get all queries with user info
+        all_queries = services['database'].get_query_history(limit=20, user_id=None)
+        
+        user_breakdown = {}
+        for query in all_queries:
+            user = query.get('user_id', 'unknown')
+            if user not in user_breakdown:
+                user_breakdown[user] = []
+            user_breakdown[user].append({
+                'id': query['id'],
+                'question': query['question'][:50] + '...',
+                'created_at': query['created_at']
+            })
+        
+        return {
+            'total_queries': len(all_queries),
+            'by_user': user_breakdown
+        }
+    except Exception as e:
+        return {"error": str(e)}
