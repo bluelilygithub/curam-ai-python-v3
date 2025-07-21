@@ -27,7 +27,7 @@ class PropertyAnalysisService:
         confidence = 0.85
         question_type = "custom"
         llm_provider = "unknown"
-        
+
         try:
             # 1. Location Detection
             location_info = self._detect_location(question)
@@ -63,7 +63,7 @@ class PropertyAnalysisService:
 
             search_results_context = ""
             search_decision = self._check_for_search_necessity(initial_llm_response['answer'])
-            
+
             if search_decision and search_decision.get("action") == "web_search":
                 if self.web_search_service and self.web_search_service.is_available:
                     logger.info(f"🌐 LLM determined web search is needed. Performing search for: '{search_decision['query']}'")
@@ -140,7 +140,7 @@ class PropertyAnalysisService:
         This prompt guides the LLM to output a structured JSON for tool calling.
         """
         location_scope = location_info.get('scope', 'National')
-        
+
         prompt = f"""You are an expert Australian property market analyst.
 Your primary goal is to answer the user's question comprehensively and accurately.
 The user's question is about the {location_scope} property market.
