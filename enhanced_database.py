@@ -1,6 +1,6 @@
 import os
 import logging
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, Float, func # ADDED 'func' here
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, Float, func
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -34,22 +34,33 @@ class Query(Base):
         return f"<Query(id={self.id}, user_id='{self.user_id}', question='{self.question[:50]}...')>"
 
 # Main Database Service Class
-class PropertyDatabase: # Assuming your class name is PropertyDatabase as in app.py
+class PropertyDatabase:
     def __init__(self):
-        # Determine database URL: use DATABASE_URL environment variable for PostgreSQL,
-        # otherwise, fall back to SQLite using Config.DATABASE_PATH.
         database_url = os.getenv('DATABASE_URL')
-        if database_url:
-            self.engine = create_engine(database_url)
-            logger.info("Using PostgreSQL database.")
-        else:
-            # Ensure Config.DATABASE_PATH is defined in your config.py
-            self.engine = create_engine(f'sqlite:///{Config.DATABASE_PATH}')
-            logger.info(f"Using SQLite database at {Config.DATABASE_PATH}.")
+        
+        # --- CRITICAL CHANGE: REMOVE SQLITE FALLBACK AND FORCE PGSQL ---
+        if not database_url:
+            logger.critical("❌ DATABASE_URL environment variable is NOT set. Cannot connect to PostgreSQL.")
+            # Raise an error to stop app startup immediately if DB is not configured
+            raise ValueError("DATABASE_URL environment variable must be set for PostgreSQL connection.")
+        
+        self.engine = create_engine(database_url)
+        logger.info("Using PostgreSQL database (DATABASE_URL detected).")
+        # --- END CRITICAL CHANGE ---
 
-        # Create tables if they don't exist
-        Base.metadata.create_all(self.engine)
-        # Configure sessionmaker to create new sessions
+        # Only create_all if in development mode or explicitly needed for initial setup.
+        # In a real production app, you would typically use a migration tool like Alembic.
+        if os.getenv('FLASK_ENV') == 'development' or os.getenv('DB_INIT_ON_STARTUP') == 'true':
+            logger.info("Attempting to create database tables (development/init mode).")
+            try:
+                Base.metadata.create_all(self.engine)
+                logger.info("Database tables checked/created.")
+            except Exception as e:
+                logger.error(f"Failed to create database tables: {e}. Check DB connection/permissions.")
+                raise # Re-raise to crash if table creation fails
+        else:
+            logger.info("Skipping database table creation on startup (production mode).")
+
         self.Session = sessionmaker(bind=self.engine)
         logger.info("Database initialized successfully.")
 
@@ -184,6 +195,7 @@ class PropertyDatabase: # Assuming your class name is PropertyDatabase as in app
                 'user_id': 'sarah_buyer',
                 'name': 'Sarah Chen',
                 'profile_type': 'first_buyer',
+                'description': 'First home buyer focused on affordability and transport links',
                 'avatar': '👩‍💼'
             },
             'michael_investor': {
@@ -231,9 +243,6 @@ class PropertyDatabase: # Assuming your class name is PropertyDatabase as in app
         """
         session = self.Session()
         try:
-            # Import func from sqlalchemy here to avoid circular dependencies if needed globally
-            # from sqlalchemy import func # Already imported at the top now.
-            
             # Step 1: Count occurrences of each question
             counted_questions_subquery = session.query(
                 Query.question,
@@ -250,24 +259,10 @@ class PropertyDatabase: # Assuming your class name is PropertyDatabase as in app
             
             popular_data = []
             for record in popular_records:
-                # To include query_id for deletion, we would need to join with the original query ID,
-                # or select the most recent query_id for each question.
-                # For simplicity here, we just use the question and count.
-                # If deletion is by question text, this is fine. If by ID, it's more complex.
-                # Assuming here the deletion relies on the `id` from `recent_user_queries`
-                # which are actual individual query instances. For popular_global, we might not have a single ID.
-                # To resolve this, you might store a representative query_id or allow deletion by question text.
-                # A common solution is to take the LATEST query_id for each distinct question.
-                # Let's adjust to try and get a query_id for deletion from the most recent entry of that question.
-                latest_query_for_question = session.query(Query.id)\
-                                                    .filter(Query.question == record.question)\
-                                                    .order_by(Query.created_at.desc())\
-                                                    .first()
-                
                 popular_data.append({
                     'question': record.question,
                     'count': record.count,
-                    'id': latest_query_for_question.id if latest_query_for_question else None # Provide a representative ID
+                    'id': record.representative_id # Use the representative ID
                 })
             
             logger.debug(f"Retrieved {len(popular_data)} popular questions.")
