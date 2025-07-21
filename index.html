@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Australian Property Intelligence V3 - User Analytics Demo</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script> 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script> 
     
-
-     <link rel="stylesheet" href="assets/css/styles.css">
+    <link rel="stylesheet" href="assets/css/styles.css">
 
 </head>
 <body>
@@ -41,6 +40,9 @@
 
                     <div class="custom-input" style="display: none;" id="customInputSection">
                         <textarea id="customQuestion" placeholder="Ask your own property question..."></textarea>
+                        <button class="microphone-btn" onclick="startVoiceInput()" id="microphoneBtn" title="Ask a question using your voice">
+                            🎙️
+                        </button>
                         <button class="analyze-btn" onclick="analyzeCustomQuestion()" id="analyzeBtn">Analyze</button>
                     </div>
                 </div>
@@ -96,6 +98,14 @@
         const API_BASE = 'https://curam-ai-python-v3-production.up.railway.app';
         let eventSource = null; // Declare eventSource globally here.
 
+        // --- Web Speech API Globals ---
+        // Ensure browser compatibility. Prefixed versions exist for older browsers.
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        let isListening = false;
+        // --- END Web Speech API Globals ---
+
+
         // User-specific preset questions
         const userPresets = {
             'sarah_buyer': [
@@ -113,8 +123,6 @@
         };
 
         // --- Core Activity Log Function ---
-        // This function adds a new entry to the activity log.
-        // It's used by both the initial frontend load and the SSE stream.
         function addActivity(type, emoji, title, message, details = {}) {
             const activityFeedDiv = document.getElementById('activityFeed');
             if (!activityFeedDiv) {
@@ -126,15 +134,13 @@
             logEntry.className = `log-entry ${type}`;
             
             let detailsHtml = '';
-            // Format timestamp specifically for display
             if (details.timestamp) {
                 const ts = new Date(details.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 detailsHtml += `<span class="timestamp">${ts}</span>`;
             }
             
-            // Convert other details (if any) to pre-formatted JSON
             const otherDetails = { ...details };
-            delete otherDetails.timestamp; // Remove timestamp if already displayed in its own span
+            delete otherDetails.timestamp;
 
             if (Object.keys(otherDetails).length > 0) {
                 detailsHtml += `<pre>${JSON.stringify(otherDetails, null, 2)}</pre>`;
@@ -148,28 +154,27 @@
                 </div>
                 <div class="log-details">${detailsHtml}</div>
             `;
-            activityFeedDiv.prepend(logEntry); // Add new logs to the top
+            activityFeedDiv.prepend(logEntry);
 
-            // Optional: Limit number of logs to prevent UI overload
-            if (activityFeedDiv.children.length > 50) { // Limit to 50 logs
+            if (activityFeedDiv.children.length > 50) {
                 activityFeedDiv.removeChild(activityFeedDiv.lastChild);
             }
         }
 
 
-        // Initialize application (no change needed here for `initLiveLogStream` call)
+        // Initialize application
         async function initApp() {
             try {
                 console.log('🚀 Initializing Australian Property Intelligence V3...');
 
-                // Initialize the live log stream first
                 initLiveLogStream();
                 addActivity('connecting', '🔗', 'System Status', 'Waiting for live log stream from backend...');
 
-                // Now proceed with other initializations
-                await loadDemoUsers();
+                await loadDemoUsers(); 
+                
                 await loadSystemStats();
                 setupPerformanceChart();
+                setupSpeechRecognition(); // Initialize speech recognition
 
                 console.log('✅ Application initialized successfully');
             } catch (error) {
@@ -182,7 +187,7 @@
         // Function to set up and manage the SSE connection for live logs
         function initLiveLogStream() {
             if (eventSource) {
-                eventSource.close(); // Close existing connection if any
+                eventSource.close();
                 console.log("Closed existing EventSource connection.");
             }
 
@@ -192,54 +197,48 @@
                 try {
                     const logData = JSON.parse(event.data);
                     
-                    // Only process if it's a valid log message (not a keep-alive or empty)
                     if (!logData.message) {
-                        return; // Skip empty keep-alive messages
+                        return;
                     }
 
-                    // --- Filtering Logic (Exclude obvious UI actions) ---
                     const excludedMessages = [
                         "Live log stream handler initialized and attached to root logger.",
                         "Connecting to user management API...",
                         "Found 2 demo users: Sarah Chen, Michael Rodriguez",
                         "Now viewing Sarah Chen's personalized analytics",
                         "Now viewing Michael Rodriguez's personalized analytics",
-                        "Starting Australian Property Intelligence API V3.0", // This is logged on backend start, but can be skipped if you have a cleaner "API Online" message
-                        "Port:", "Debug:", "Database:", "User Switching:", // Startup config logs
-                        "Services initialized:", // Combined service initialization success
-                        "LLM service initialized", // Initial service status (often followed by model tests)
+                        "Starting Australian Property Intelligence API V3.0",
+                        "Port:", "Debug:", "Database:", "User Switching:",
+                        "Services initialized:",
+                        "LLM service initialized",
                         "RSS service initialized",
                         "Property analysis service initialized",
                         "Health checker initialized",
-                        "PostgreSQL database service initialized" // Initial DB connection
+                        "PostgreSQL database service initialized"
                     ];
 
-                    // Check if the message should be filtered out
                     if (excludedMessages.some(msg => logData.message.includes(msg))) {
-                        return; // Skip this log entry
+                        return;
                     }
 
-                    // --- Intelligent Emoji and Type Assignment ---
-                    let emoji = 'ℹ️'; // Default for INFO
-                    let type = 'info'; // Default type
-                    let title = logData.level; // Start title with log level
+                    let emoji = 'ℹ️';
+                    let type = 'info';
+                    let title = logData.level;
 
                     switch (logData.level) {
                         case 'INFO':
-                            // Specific backend activities
                             if (logData.message.includes("CLAUDE PROMPT BEING SENT")) {
                                 emoji = '📝'; type = 'processing'; title = 'Claude Prompt';
-                                logData.message = "Sending prompt to Claude..."; // Shorten message for log view
+                                logData.message = "Sending prompt to Claude...";
                             } else if (logData.message.includes("GEMINI PROMPT BEING SENT")) {
                                 emoji = '📝'; type = 'processing'; title = 'Gemini Prompt';
-                                logData.message = "Sending prompt to Gemini..."; // Shorten message for log view
+                                logData.message = "Sending prompt to Gemini...";
                             } else if (logData.message.includes("Retrieved") && logData.message.includes("articles")) {
                                 emoji = '📥'; type = 'success'; title = 'RSS Data Retrieved';
                             } else if (logData.message.includes("Converted") && logData.message.includes("articles to data sources")) {
                                 emoji = '📊'; type = 'success'; title = 'RSS Data Processed';
                             } else if (logData.message.includes("LOCATION DETECTION")) {
                                 emoji = '📍'; type = 'info'; title = 'Location Detected';
-                                // Extract location for display in details
                                 const match = logData.message.match(/LOCATION DETECTION FINAL RESULT: \{'scope': '([^']*)'/);
                                 if (match && match[1]) {
                                     logData.details = { scope: match[1] };
@@ -293,17 +292,13 @@
                             break;
                     }
 
-                    // Add logger name to title if available and not 'app' or main
                     if (logData.name && logData.name !== '__main__' && logData.name !== 'app') {
-                         title += ` (${logData.name.split('.').pop()})`; // e.g., (llm_service), (enhanced_database)
+                         title += ` (${logData.name.split('.').pop()})`;
                     }
 
-                    // Prepare details object for addActivity (combining existing details with logData.details)
-                    const activityDetails = logData.details || {}; // Use logData.details if already set in filtering
+                    const activityDetails = logData.details || {};
                     if (logData.timestamp) activityDetails.timestamp = logData.timestamp;
 
-
-                    // Call addActivity with the processed data
                     addActivity(type, emoji, title, logData.message, activityDetails);
 
                 } catch (e) {
@@ -320,28 +315,143 @@
             console.log('🔗 Attempting to connect to live log stream.');
         }
 
+        // --- Web Speech API Functions ---
+        function setupSpeechRecognition() {
+            if (!SpeechRecognition) {
+                console.warn('Web Speech API not supported by this browser.');
+                document.getElementById('microphoneBtn').disabled = true;
+                addActivity('warning', '🚫', 'Voice Input', 'Web Speech API not supported. Microphone input unavailable.', { browser: 'Unsupported' });
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true; // Set to true for live transcription
+            recognition.lang = 'en-AU';
+
+            recognition.onstart = () => {
+                isListening = true;
+                document.getElementById('microphoneBtn').classList.add('listening');
+                document.getElementById('microphoneBtn').textContent = '🔴';
+                document.getElementById('customQuestion').placeholder = "Listening... speak now!";
+                document.getElementById('customQuestion').value = ""; // Clear previous question
+                addActivity('info', '🎙️', 'Voice Input', 'Microphone active. Waiting for your question...', { status: 'Listening' });
+                console.log('🎙️ Speech recognition started.');
+            };
+
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                // Update the input field with either final or interim results
+                const customQuestionInput = document.getElementById('customQuestion');
+                customQuestionInput.value = finalTranscript || interimTranscript;
+
+                if (event.results[event.resultIndex].isFinal) {
+                    isListening = false;
+                    document.getElementById('microphoneBtn').classList.remove('listening');
+                    document.getElementById('microphoneBtn').textContent = '🎙️';
+                    customQuestionInput.placeholder = "Ask your own property question...";
+                    addActivity('success', '🗣️', 'Voice Input', `Question captured: "${finalTranscript.substring(0, 50)}..."`, { text: finalTranscript });
+                    console.log('🗣️ Speech recognized (final):', finalTranscript);
+                    
+                    if (finalTranscript.trim().length > 0) {
+                        analyzeCustomQuestion(); // Automatically analyze the question
+                    } else {
+                        addActivity('warning', '🎙️', 'Voice Input', 'No significant speech captured. Please try again.', { status: 'No Speech Final' });
+                        console.warn('⚠️ Final result was empty or too short.');
+                    }
+                } else {
+                    console.log('👂 Interim speech recognized:', interimTranscript);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                isListening = false;
+                document.getElementById('microphoneBtn').classList.remove('listening');
+                document.getElementById('microphoneBtn').textContent = '🎙️';
+                document.getElementById('customQuestion').placeholder = "Ask your own property question...";
+                addActivity('error', '🎙️', 'Voice Input Error', `Error: ${event.error}. Try again.`, { error_code: event.error });
+                console.error('❌ Speech recognition error:', event.error);
+                if (event.error === 'not-allowed') {
+                    showError('Microphone access denied. Please allow microphone permissions for this site.');
+                } else if (event.error === 'no-speech') {
+                    addActivity('warning', '🎙️', 'Voice Input', 'No speech detected. Please try again.', { status: 'No Speech' });
+                }
+            };
+
+            recognition.onend = () => {
+                if (isListening) {
+                    isListening = false;
+                    document.getElementById('microphoneBtn').classList.remove('listening');
+                    document.getElementById('microphoneBtn').textContent = '🎙️';
+                    document.getElementById('customQuestion').placeholder = "Ask your own property question...";
+                    if (document.getElementById('customQuestion').value.trim() === "") {
+                         addActivity('info', '🎙️', 'Voice Input', 'Microphone session timed out or no clear speech. Ready for next question.', { status: 'Ended Timeout' });
+                    } else {
+                         addActivity('info', '🎙️', 'Voice Input', 'Microphone session ended. Ready for next question.', { status: 'Ended' });
+                    }
+                    console.log('🎙️ Speech recognition ended.');
+                }
+            };
+        }
+
+        function startVoiceInput() {
+            const customQuestionInput = document.getElementById('customQuestion');
+            customQuestionInput.focus();
+
+            if (isListening) {
+                recognition.stop();
+            } else {
+                try {
+                    customQuestionInput.value = ""; 
+                    recognition.start();
+                } catch (e) {
+                    console.error('Error starting speech recognition:', e);
+                    if (e.message.includes('already started')) {
+                        console.warn('Recognition already started, ignoring.');
+                    } else {
+                        addActivity('error', '🎙️', 'Voice Input Error', `Could not start microphone: ${e.message}`, { error: e.message });
+                        showError(`Microphone error: ${e.message}. Check permissions.`);
+                    }
+                }
+            }
+        }
+        // --- END Web Speech API Functions ---
+
+
         // Load demo users from API
         async function loadDemoUsers() {
             try {
-                // This message is now managed by the live log stream, remove redundant addActivity
-                // addActivity('connecting', '👥', 'Loading Demo Users', 'Connecting to user management API...', { status: 'Loading' });
+                addActivity('connecting', '👥', 'Loading Demo Users', 'Attempting to load demo users from API...', { status: 'Loading' });
                 
                 const response = await fetch(`${API_BASE}/api/users`);
                 const data = await response.json();
                 
-                if (data.success) {
+                if (data.success && data.users && data.users.length > 0) {
                     demoUsers = data.users;
                     renderUserButtons();
-                    // This message is now managed by the live log stream, remove redundant addActivity
-                    // addActivity('success', '✅', 'Demo Users Loaded', `Found ${demoUsers.length} demo users: ${demoUsers.map(u => u.name).join(', ').substring(0, 50)}...`, { users: demoUsers.length });
+                    if (demoUsers.length > 0) {
+                        switchUser(demoUsers[0].user_id);
+                    }
+                    addActivity('success', '✅', 'Demo Users Loaded', `Found ${demoUsers.length} demo users.`, { users: demoUsers.length });
                     console.log(`✅ Loaded ${demoUsers.length} demo users`);
                 } else {
-                    throw new Error(data.error || 'Failed to load users');
+                    throw new Error(data.error || 'Failed to load users from API, or no users returned.');
                 }
             } catch (error) {
-                console.error('❌ Error loading users:', error);
-                addActivity('error', '❌', 'Failed to Load Users', error.message, { status: 'Error' });
-                showError('Failed to load demo users');
+                console.error('❌ Error loading users from API:', error);
+                addActivity('error', '❌', 'Failed to Load Users', `API error: ${error.message}. Using fallback users.`, { status: 'Error' });
+                addFallbackUsers(); // Use fallback users if API fails
             }
         }
 
@@ -355,14 +465,12 @@
                 button.className = 'user-btn';
                 button.setAttribute('data-user', user.user_id);
                 button.onclick = () => switchUser(user.user_id);
-
-                // Enhanced button content
+                
                 button.innerHTML = `
                     <div class="user-name">${user.avatar} ${user.name}</div>
                     <div class="user-type">${getProfileTypeLabel(user.profile_type)}</div>
                     <div class="user-preview">${user.description}</div>
                 `;
-
                 container.appendChild(button);
             });
         }
@@ -378,40 +486,37 @@
 
         // Switch to different user
         async function switchUser(userId) {
+            if (currentUser === userId) {
+                console.log(`ℹ️ Already on user: ${userId}`);
+                return; 
+            }
+
             try {
                 console.log(`🔄 Switching to user: ${userId}`);
                 currentUser = userId;
                 const user = demoUsers.find(u => u.user_id === userId);
                 
-                // This message is now managed by the live log stream, remove redundant addActivity
-                // addActivity('processing', '🔄', 'User Switch', `Switching to ${user.name} (${getProfileTypeLabel(user.profile_type)})`, { user: user.name });
-                
-                // Update UI to show active user
                 document.querySelectorAll('.user-btn').forEach(btn => {
                     btn.classList.remove('active');
                 });
-                document.querySelector(`[data-user="${userId}"]`).classList.add('active');
+                const activeBtn = document.querySelector(`[data-user="${userId}"]`);
+                if (activeBtn) {
+                    activeBtn.classList.add('active');
+                } else {
+                    console.warn(`User button not found for ${userId}`);
+                }
 
-                // Show loading states
                 document.getElementById('userProfile').classList.add('loading');
                 document.getElementById('sectionTitle').textContent = '🔄 Loading user data...';
 
-                // Load user data
                 await loadUserStats(userId);
                 renderPresetQuestions(userId);
                 
-                // Show custom input section
                 document.getElementById('customInputSection').style.display = 'flex';
-                
-                // Update section title
-                document.getElementById('sectionTitle').textContent = 
-                    `🤖 ${user.name}'s Property Analysis`;
-                
-                // Clear any existing results
+                document.getElementById('sectionTitle').textContent = `🤖 ${user.name}'s Property Analysis`;
                 document.getElementById('results').style.display = 'none';
 
-                // This message is now managed by the live log stream, remove redundant addActivity
-                // addActivity('success', '✅', 'User Switch Complete', `Now viewing ${user.name}'s personalized analytics`, { status: 'Active' });
+                addActivity('success', '✅', 'User Switched', `Successfully switched to ${user.name}'s profile.`, { user: user.name });
                 console.log(`✅ Successfully switched to ${user.name}`);
                 
             } catch (error) {
@@ -424,19 +529,16 @@
         // Load user statistics
         async function loadUserStats(userId) {
             try {
-                // This message is now managed by the live log stream, remove redundant addActivity
-                // addActivity('connecting', '📊', 'Loading User Stats', `Fetching analytics for ${userId}...`, { status: 'Loading' });
-                
                 const response = await fetch(`${API_BASE}/api/users/${userId}/stats`);
                 const data = await response.json();
                 
                 if (data.success) {
                     updateUserProfile(data.data);
-                    // This message is now managed by the live log stream, remove redundant addActivity
-                    // addActivity('success', '📈', 'User Stats Loaded', `Analytics loaded: ${data.data.stats.total_queries} queries, ${data.data.stats.avg_processing_time}s avg time`, { 
-                    //     queries: data.data.stats.total_queries,
-                    //     time: `${data.data.stats.avg_processing_time}s`
-                    // });
+                    addActivity('success', '📈', 'User Stats Loaded', `Analytics loaded for ${userId}: ${data.data.stats.total_queries} queries, ${data.data.stats.avg_processing_time}s avg time`, { 
+                        user: userId,
+                        queries: data.data.stats.total_queries,
+                        time: `${data.data.stats.avg_processing_time}s`
+                    });
                     console.log(`✅ Loaded stats for ${userId}`);
                 } else {
                     throw new Error(data.error || 'Failed to load user stats');
@@ -470,7 +572,6 @@
                 </div>
             `;
 
-            // Update query history
             updateQueryHistory(userData.recent_queries);
         }
 
@@ -525,134 +626,131 @@
         }
 
         // Render preset questions for current user
-        function renderPresetQuestions(userId) {
+        async function renderPresetQuestions(userId) { // Made async
             const container = document.getElementById('presetQuestions');
-            const questions = userPresets[userId] || [];
-            
-            container.innerHTML = '';
-            
-            questions.forEach(question => {
-                const button = document.createElement('button');
-                button.className = 'preset-btn fade-in';
-                button.textContent = question;
-                button.onclick = () => analyzeQuestion(question);
-                container.appendChild(button);
-            });
-        }
+            container.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading personalized questions...</p>
+                </div>
+            `;
 
-        // Analyze property question with enhanced activity logging
-async function analyzeQuestion(question) {
-    if (!currentUser) {
-        alert('Please select a user first');
-        return;
-    }
+            try {
+                const response = await fetch(`${API_BASE}/api/property/questions?user_id=${userId}`);
+                const data = await response.json();
 
-    const user = demoUsers.find(u => u.user_id === currentUser);
-    // Removed direct addActivity for starting analysis as it's now logged from backend.
+                container.innerHTML = '';
+                
+                if (data.success && data.questions && data.questions.length > 0) {
+                    data.questions.forEach(q => {
+                        const buttonWrapper = document.createElement('div');
+                        buttonWrapper.className = 'preset-btn-wrapper fade-in';
 
-    const resultsDiv = document.getElementById('results');
-    resultsDiv.style.display = 'block';
-    resultsDiv.innerHTML = `
-        <div class="loading">
-            <div class="spinner"></div>
-            <p>Analyzing property question for ${user?.name}...</p>
-        </div>
-    `;
+                        const button = document.createElement('button');
+                        button.className = 'preset-btn';
+                        button.textContent = q.question;
+                        button.onclick = () => analyzeQuestion(q.question);
+                        
+                        let typeLabel = '';
+                        if (q.type === 'recent_user') {
+                            typeLabel = ' (Recent)';
+                            button.classList.add('preset-btn-recent');
+                        } else if (q.type === 'popular_global') {
+                            typeLabel = ' (Popular)';
+                            button.classList.add('preset-btn-popular');
+                        } else if (q.type === 'example') {
+                            typeLabel = ' (Example)';
+                            button.classList.add('preset-btn-example');
+                        }
 
-    // Scroll to results
-    resultsDiv.scrollIntoView({ behavior: 'smooth' });
+                        const span = document.createElement('span');
+                        span.className = 'preset-type-label';
+                        span.textContent = typeLabel;
+                        button.appendChild(span);
 
-    try {
-        console.log(`🔍 Analyzing question for ${currentUser}: ${question}`);
-        
-        const response = await fetch(`${API_BASE}/api/property/analyze`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                question: question,
-                user_id: currentUser
-            })
-        });
+                        // --- THIS LINE WAS MISSING ---
+                        buttonWrapper.appendChild(button); // Add button to wrapper
+                        // --- END MISSING LINE ---
 
-        const data = await response.json();
+                        if (q.type === 'recent_user' || q.type === 'popular_global') {
+                            const deleteBtn = document.createElement('button');
+                            deleteBtn.className = 'delete-preset-btn';
+                            deleteBtn.innerHTML = '&times;';
+                            deleteBtn.title = `Delete "${q.question}"`;
+                            deleteBtn.onclick = (event) => {
+                                event.stopPropagation();
+                                if (confirm(`Are you sure you want to delete this question: "${q.question}"?`)) {
+                                    deleteQuestion(q.query_id);
+                                }
+                            };
+                            buttonWrapper.appendChild(deleteBtn);
+                        }
 
-        if (data.success) {
-            // Removed direct addActivity for analysis complete as it's now logged from backend.
-            
-            // --- CRITICAL CHANGE HERE: Use marked.parse() ---
-            const formattedAnswerHtml = marked.parse(data.answer || ''); // Render Markdown to HTML
-
-            resultsDiv.innerHTML = `
-                <div class="results fade-in">
-                    <h3>📋 Analysis Results for ${user?.name}</h3>
-                    <div class="analysis-content">${formattedAnswerHtml}</div> <div class="metadata">
-                        <div class="metadata-item">
-                            <span><strong>Location:</strong></span>
-                            <span>${data.metadata.location_detected}</span>
+                        container.appendChild(buttonWrapper);
+                    });
+                    addActivity('success', '❓', 'Questions Loaded', `Loaded ${data.questions.length} dynamic questions for ${userId}.`, { user: userId });
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <span class="emoji">📝</span>
+                            <p>No recent questions yet. Ask a question or use the microphone to start!</p>
+                            <p>Or check the console for fallback example questions.</p>
                         </div>
-                        <div class="metadata-item">
-                            <span><strong>Processing Time:</strong></span>
-                            <span>${data.processing_time}s</span>
-                        </div>
-                        <div class="metadata-item">
-                            <span><strong>LLM Provider:</strong></span>
-                            <span>${data.metadata.llm_provider}</span>
-                        </div>
-                        <div class="metadata-item">
-                            <span><strong>Confidence:</strong></span>
-                            <span>${Math.round(data.metadata.confidence * 100)}%</span>
-                        </div>
-                        <div class="metadata-item">
-                            <span><strong>Query ID:</strong></span>
-                            <span>#${data.query_id}</span>
-                        </div>
-                        <div class="metadata-item">
-                            <span><strong>User:</strong></span>
-                            <span>${currentUser}</span>
-                        </div>
+                    `;
+                    addActivity('info', '❓', 'Questions', 'No dynamic questions found, prompting user to ask.', { user: userId });
+                    console.log("No dynamic questions found for user, prompting custom input.");
+                }
+            } catch (error) {
+                console.error('❌ Error loading preset questions:', error);
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <span class="emoji">❗</span>
+                        <p>Failed to load questions. Please try refreshing.</p>
                     </div>
-                </div>
-            `;
-
-            // Refresh user stats and charts
-            await loadUserStats(currentUser);
-            await loadSystemStats();
-            
-            console.log(`✅ Analysis completed for ${currentUser}`);
-        } else {
-            addActivity('error', '❌', 'Analysis Failed', data.error || 'Unknown error occurred', { status: 'Error' });
-            
-            resultsDiv.innerHTML = `
-                <div class="results">
-                    <h3>❌ Analysis Failed</h3>
-                    <p>Sorry, we couldn't analyze your question. Please try again.</p>
-                    <p class="error-details">${data.error}</p>
-                </div>
-            `;
+                `;
+                addActivity('error', '❓', 'Questions Load Failed', `Error: ${error.message}.`, { user: userId });
+            }
         }
-    } catch (error) {
-        console.error('❌ Error analyzing question:', error);
-        addActivity('error', '❌', 'Analysis Error', error.message, { status: 'Error' });
-        
-        resultsDiv.innerHTML = `
-            <div class="results">
-                <h3>❌ Error</h3>
-                <p>An error occurred while analyzing your question.</p>
-                <p class="error-details">${error.message}</p>
-            </div>
-        `;
-    }
-}
 
+        // Function to delete a question
+        async function deleteQuestion(queryId) {
+            try {
+                if (!queryId) {
+                    addActivity('error', '❌', 'Delete Question', 'Missing query ID for deletion.', { status: 'Error' });
+                    return;
+                }
+
+                addActivity('processing', '🗑️', 'Deleting Question', `Attempting to delete query ID: ${queryId}...`, { query_id: queryId });
+
+                const response = await fetch(`${API_BASE}/api/property/history/${queryId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    addActivity('success', '🗑️', 'Question Deleted', `Query ID ${queryId} removed.`, { query_id: queryId });
+                    renderPresetQuestions(currentUser); // Refresh the list
+                    loadUserStats(currentUser); // Refresh history/stats
+                } else {
+                    throw new Error(data.error || 'Failed to delete question.');
+                }
+            } catch (error) {
+                console.error('❌ Error deleting question:', error);
+                addActivity('error', '❌', 'Delete Question Failed', `Error: ${error.message}`, { query_id: queryId });
+                showError(`Failed to delete question: ${error.message}`);
+            }
+        }
 
         // Analyze custom question
         function analyzeCustomQuestion() {
             const question = document.getElementById('customQuestion').value.trim();
             if (question) {
                 analyzeQuestion(question);
-                document.getElementById('customQuestion').value = '';
+                // The clearing of the input field is now handled inside analyzeQuestion after LLM response.
             }
         }
 
@@ -760,7 +858,6 @@ async function analyzeQuestion(question) {
         function showError(message) {
             console.error('❌', message);
             
-            // Create error notification
             const errorDiv = document.createElement('div');
             errorDiv.style.cssText = `
                 position: fixed;
@@ -778,7 +875,6 @@ async function analyzeQuestion(question) {
             
             document.body.appendChild(errorDiv);
             
-            // Remove after 5 seconds
             setTimeout(() => {
                 if (errorDiv.parentNode) {
                     errorDiv.parentNode.removeChild(errorDiv);
@@ -807,35 +903,29 @@ async function analyzeQuestion(question) {
 
         // Add some demo data if no users loaded (fallback)
         function addFallbackUsers() {
-            if (demoUsers.length === 0) {
-                demoUsers = [
-                    {
-                        user_id: 'sarah_buyer',
-                        name: 'Sarah Chen',
-                        profile_type: 'first_buyer',
-                        description: 'First home buyer focused on affordability and transport links',
-                        avatar: '👩‍💼'
-                    },
-                    {
-                        user_id: 'michael_investor',
-                        name: 'Michael Rodriguez',
-                        profile_type: 'investor',
-                        description: 'Property investor focused on rental yield and growth',
-                        avatar: '👨‍💻'
-                    }
-                ];
-                renderUserButtons();
-                addActivity('success', '🔄', 'Fallback Users Loaded', 'Using demo user data for demonstration', { status: 'Demo Mode' });
-                console.log('ℹ️ Using fallback demo users');
+            console.log('ℹ️ Using fallback demo users as API users not loaded.');
+            demoUsers = [
+                {
+                    user_id: 'sarah_buyer',
+                    name: 'Sarah Chen',
+                    profile_type: 'first_buyer',
+                    description: 'First home buyer focused on affordability and transport links',
+                    avatar: '👩‍💼'
+                },
+                {
+                    user_id: 'michael_investor',
+                    name: 'Michael Rodriguez',
+                    profile_type: 'investor',
+                    description: 'Property investor focused on rental yield and growth',
+                    avatar: '👨‍💻'
+                }
+            ];
+            renderUserButtons();
+            if (demoUsers.length > 0) {
+                switchUser(demoUsers[0].user_id);
             }
+            addActivity('success', '🔄', 'Fallback Users Loaded', 'API users not available, using local demo data.', { status: 'Demo Mode' });
         }
-
-        // Initialize fallback after 3 seconds if no users loaded
-        setTimeout(() => {
-            if (demoUsers.length === 0) {
-                addFallbackUsers();
-            }
-        }, 3000);
 
         // Enhanced logging for debugging
         window.addEventListener('load', () => {
@@ -849,7 +939,6 @@ async function analyzeQuestion(question) {
             console.log('🌐 Back online');
             addActivity('success', '🌐', 'Connection Restored', 'Back online - all features available', { status: 'Online' });
             loadSystemStats();
-            // EventSource automatically attempts to reconnect, so manual initLiveLogStream() call here is not strictly necessary
         });
 
         window.addEventListener('offline', () => {

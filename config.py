@@ -75,6 +75,14 @@ class Config:
     "Which Australian property markets offer the best investment opportunities?",
     "What are the emerging property hotspots in Australia?"
     ]
+
+    # Default example questions if no user history/popular questions are available yet
+    DEFAULT_EXAMPLE_QUESTIONS = [
+        "What are the current property market trends in Brisbane?",
+        "How does interest rate change affect property values in Sydney?",
+        "Analyze recent infrastructure developments impacting Melbourne property.",
+        "What are the investment opportunities in Perth's residential market?"
+    ]
     
     # RSS Data Sources
     AUSTRALIAN_RSS_CONFIG = {

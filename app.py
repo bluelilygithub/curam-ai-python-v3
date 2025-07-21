@@ -1099,35 +1099,54 @@ def analyze_property_question():
 
 @app.route('/api/property/questions', methods=['GET'])
 def get_property_questions():
-    """Get preset questions (can be customized per user in future)"""
+    """
+    Get dynamic property questions based on user history and popular queries.
+    Provides fallback to default examples if no history exists.
+    """
     try:
         user_id = request.args.get('user_id', 'anonymous')
-        
-        # Get user-specific preset questions
-        preset_questions = get_user_preset_questions(user_id)
-        
         questions = []
-        for question in preset_questions:
-            questions.append({
-                'question': question,
-                'type': 'preset',
-                'user_specific': user_id != 'anonymous'
-            })
         
-        # Add popular questions from database for this user
+        # Try to get recent queries for the specific user
         if services['database']:
             try:
-                popular = services['database'].get_popular_questions(5, user_id if user_id != 'anonymous' else None)
-                for item in popular:
-                    if item['question'] not in preset_questions:
+                # Fetch recent queries for the user
+                recent_user_queries = services['database'].get_query_history(limit=5, user_id=user_id)
+                for query_item in recent_user_queries:
+                    questions.append({
+                        'question': query_item['question'],
+                        'type': 'recent_user',
+                        'user_specific': True,
+                        'query_id': query_item['id'],
+                        'count': 1 # Placeholder for count, as it's from history
+                    })
+                logger.info(f"Retrieved {len(recent_user_queries)} recent queries for user {user_id}.")
+
+                # Fetch overall popular queries (not user-specific for broad examples)
+                popular_global_queries = services['database'].get_popular_questions(limit=5, user_id=None) # Pass None for global
+                for item in popular_global_queries:
+                    # Avoid duplicates if a popular question is also a recent user question
+                    if not any(q['question'] == item['question'] for q in questions):
                         questions.append({
                             'question': item['question'],
-                            'type': 'popular',
-                            'count': item['count'],
-                            'user_specific': user_id != 'anonymous'
+                            'type': 'popular_global',
+                            'user_specific': False,
+                            'count': item['count']
                         })
+                logger.info(f"Retrieved {len(popular_global_queries)} popular global queries.")
+
             except Exception as e:
-                logger.error(f"Failed to get popular questions: {e}")
+                logger.error(f"Failed to retrieve dynamic questions from database: {e}")
+        
+        # If no dynamic questions are found, use default examples from Config
+        if not questions:
+            for question_text in Config.DEFAULT_EXAMPLE_QUESTIONS:
+                questions.append({
+                    'question': question_text,
+                    'type': 'example',
+                    'user_specific': False
+                })
+            logger.info("Using default example questions as no dynamic questions found.")
         
         return jsonify({
             'success': True,
@@ -1371,3 +1390,40 @@ def stream_logs():
 
     # Return the response with the event-stream mimetype
     return Response(stream_with_context(generate()), mimetype="text/event-stream")
+
+
+
+# ================================
+# Managing Questions
+# ================================
+
+
+    @app.route('/api/property/history/<int:query_id>', methods=['DELETE'])
+def delete_query_by_id(query_id: int):
+    """Delete a specific query from history by its ID."""
+    if not services['database']:
+        return jsonify({
+            'success': False,
+            'error': 'Database service not available.'
+        }), 500
+    
+    try:
+        success = services['database'].delete_query(query_id)
+        if success:
+            logger.info(f"🗑️ Query with ID {query_id} deleted successfully.")
+            return jsonify({
+                'success': True,
+                'message': f"Query {query_id} deleted."
+            }), 200
+        else:
+            logger.warning(f"⚠️ Query with ID {query_id} not found or could not be deleted.")
+            return jsonify({
+                'success': False,
+                'error': f"Query with ID {query_id} not found or could not be deleted."
+            }), 404
+    except Exception as e:
+        logger.error(f"❌ Error deleting query {query_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': f"Server error deleting query: {str(e)}"
+        }), 500

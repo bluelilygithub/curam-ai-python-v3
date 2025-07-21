@@ -432,6 +432,88 @@ body {
     box-shadow: 0 8px 25px rgba(0,0,0,0.25);
 }
 
+.preset-btn-recent {
+    background: linear-gradient(135deg, #a7e0f0 0%, #76b1f0 100%); /* Lighter blue/cyan */
+    color: #333;
+}
+.preset-btn-recent:hover {
+    background: linear-gradient(135deg, #76b1f0 0%, #a7e0f0 100%);
+}
+
+.preset-btn-popular {
+    background: linear-gradient(135deg, #f0e0a7 0%, #f0c576 100%); /* Yellow/orange */
+    color: #333;
+}
+.preset-btn-popular:hover {
+    background: linear-gradient(135deg, #f0c576 0%, #f0e0a7 100%);
+}
+
+.preset-btn-example {
+    background: linear-gradient(135deg, #e0a7f0 0%, #c576f0 100%); /* Purple/pink */
+    color: #333;
+}
+.preset-btn-example:hover {
+    background: linear-gradient(135deg, #c576f0 0%, #e0a7f0 100%);
+}
+
+.preset-type-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    opacity: 0.8;
+    margin-left: 8px;
+    background: rgba(255,255,255,0.2);
+    padding: 2px 6px;
+    border-radius: 8px;
+    display: inline-block;
+}
+
+.preset-btn-wrapper {
+    position: relative; /* Allows delete button to be positioned relative to this */
+    display: flex; /* Or inline-flex, to keep it from taking full width if not needed */
+    align-items: center;
+    gap: 8px; /* Space between button and delete icon */
+}
+
+.delete-preset-btn {
+    background: #f44336; /* Red color for delete */
+    color: white;
+    border: none;
+    border-radius: 50%; /* Make it circular */
+    width: 24px; /* Small size */
+    height: 24px;
+    font-size: 1.1em;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    flex-shrink: 0; /* Prevent it from shrinking */
+    opacity: 0.8; /* Slightly transparent when not hovered */
+}
+
+.delete-preset-btn:hover {
+    background: #d32f2f; /* Darker red on hover */
+    opacity: 1;
+}
+
+/* Optional: Hide delete button until hovered over the wrapper */
+.preset-btn-wrapper .delete-preset-btn {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.preset-btn-wrapper:hover .delete-preset-btn {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Ensure the main preset button has flex-grow to take available space */
+.preset-btn-wrapper .preset-btn {
+    flex-grow: 1;
+}
+
 .custom-input {
     display: flex;
     gap: 15px;
