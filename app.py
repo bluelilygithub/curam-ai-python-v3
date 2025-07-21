@@ -520,12 +520,18 @@ async def analyze_property_question(): # Changed to async
             'question': question,
             'answer': result['final_answer'],
             'processing_time': round(processing_time, 2),
-            'query_id': query_id, # Include the stored query ID for frontend reference
+            'query_id': query_id,
             'user_id': user_id,
-            'metadata': { # Detailed metadata about the analysis process
+            'sources': result.get('sources', {}), # Include source information
+            'metadata': {
                 'location_detected': location_detected,
                 'llm_provider': llm_provider,
-                'confidence': result.get('confidence', 0.85)
+                'confidence': result.get('confidence', 0.85),
+                'sources_used': {
+                    'rss_count': len(result.get('sources', {}).get('rss_sources', [])),
+                    'search_count': len(result.get('sources', {}).get('search_sources', [])),
+                    'total_sources': result.get('sources', {}).get('total_sources', 0)
+                }
             },
             'timestamp': datetime.now().isoformat()
         }
