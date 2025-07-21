@@ -55,11 +55,20 @@ class PropertyAnalysisService:
             initial_prompt = self._build_initial_llm_prompt(question, location_info, rss_context)
             logger.info("🤖 Initial LLM prompt sent to determine search necessity.")
 
+            # Try Claude first, with fallback to Gemini
             initial_llm_response = await self.llm_service.analyze_with_claude(initial_prompt)
-            llm_provider = "claude" 
+            llm_provider = "claude"
 
-            if not initial_llm_response['success']:
-                raise Exception(initial_llm_response['error'])
+            # Add safety check for None response
+            if not initial_llm_response or not isinstance(initial_llm_response, dict):
+                logger.warning("Claude service unavailable, trying Gemini for initial analysis...")
+                initial_llm_response = await self.llm_service.analyze_with_gemini(initial_prompt)
+                llm_provider = "gemini"
+
+            # Check if we have a valid response
+            if not initial_llm_response or not initial_llm_response.get('success'):
+                error_msg = initial_llm_response.get('error', 'LLM service unavailable') if initial_llm_response else 'No LLM service available'
+                raise Exception(error_msg)
 
             search_results_context = ""
             search_decision = self._check_for_search_necessity(initial_llm_response['answer'])
@@ -83,20 +92,27 @@ class PropertyAnalysisService:
             else:
                 logger.warning("LLM search decision could not be parsed or was invalid. Assuming direct analysis.")
 
-
             # 4. Final LLM Analysis with All Context
             final_llm_prompt = self._build_final_llm_prompt(question, location_info, rss_context, search_results_context)
             logger.info("🤖 Final LLM prompt sent with all gathered context.")
 
+            # Try Gemini first if available, then Claude as fallback
             if self.llm_service.gemini_is_available:
                 llm_response = await self.llm_service.analyze_with_gemini(final_llm_prompt)
                 llm_provider = "gemini"
-            else:
+            elif self.llm_service.claude_is_available:
                 llm_response = await self.llm_service.analyze_with_claude(final_llm_prompt)
                 llm_provider = "claude"
+            else:
+                raise Exception("No LLM services are available")
 
-            if not llm_response['success']:
-                raise Exception(llm_response['error'])
+            # Add safety check for final response
+            if not llm_response or not isinstance(llm_response, dict):
+                raise Exception("LLM service returned invalid response")
+
+            if not llm_response.get('success'):
+                error_msg = llm_response.get('error', 'LLM analysis failed')
+                raise Exception(error_msg)
 
             final_answer = llm_response['answer']
             success = True
@@ -161,9 +177,72 @@ If it does not (e.g., it's a general trend, analysis, comparison, or opinion), y
 **If "action" is "web_search":**
 - It MUST include a "query" key with a precise search query (e.g., "current median house price Darwin 3 bedroom").
 - Example:
-```json
 {{
     "action": "web_search",
     "query": "median house price Darwin 3 bedroom house"
 }}
-"""
+
+**If "action" is "analyze_directly":**
+- It MUST include a "reason" key explaining why no search is needed.
+- Example:
+{{
+    "action": "analyze_directly",
+    "reason": "This is a general trend question that can be answered using RSS articles and market knowledge"
+}}
+
+Respond with ONLY the JSON object, no other text."""
+
+        return prompt
+
+    def _build_final_llm_prompt(self, question: str, location_info: dict, rss_context: str, search_results_context: str) -> str:
+        """
+        Builds the final comprehensive prompt for LLM analysis with all available context.
+        """
+        location_scope = location_info.get('scope', 'National')
+        
+        prompt = f"""You are an expert Australian property market analyst providing comprehensive analysis.
+
+**User Question:** "{question}"
+**Location Focus:** {location_scope}
+
+**Available Context:**
+{rss_context}
+{search_results_context}
+
+**Instructions:**
+1. Provide a detailed, professional analysis of the property question
+2. Focus specifically on the {location_scope} market when relevant
+3. Use the provided RSS articles and search results to support your analysis
+4. Include specific data points, trends, and insights where available
+5. Structure your response clearly with key findings
+6. Provide actionable insights for property investors or buyers
+7. Be comprehensive but concise (aim for 3-4 paragraphs)
+
+**Response Format:**
+Provide a well-structured analysis that directly answers the user's question about {location_scope} property market trends, using the latest available information."""
+
+        return prompt
+
+    def _check_for_search_necessity(self, llm_response: str) -> dict:
+        """
+        Parses the LLM's response to determine if web search is needed.
+        Returns a dictionary with the action and additional parameters.
+        """
+        try:
+            # Try to parse as JSON
+            if llm_response.strip().startswith('{') and llm_response.strip().endswith('}'):
+                decision = json.loads(llm_response)
+                return decision
+            
+            # Fallback: look for action keywords in text
+            if 'web_search' in llm_response.lower():
+                return {"action": "web_search", "query": "Australian property market trends"}
+            else:
+                return {"action": "analyze_directly", "reason": "General analysis question"}
+                
+        except json.JSONDecodeError:
+            logger.warning(f"Could not parse LLM search decision: {llm_response}")
+            return {"action": "analyze_directly", "reason": "Failed to parse search decision"}
+        except Exception as e:
+            logger.error(f"Error checking search necessity: {e}")
+            return {"action": "analyze_directly", "reason": "Error in search decision parsing"}
