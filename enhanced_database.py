@@ -39,9 +39,10 @@ class PropertyDatabase:
         database_url = os.getenv('DATABASE_URL')
         
         # --- CRITICAL CHANGE: REMOVE SQLITE FALLBACK AND FORCE PGSQL ---
+        # This will explicitly crash the app if DATABASE_URL is not set,
+        # providing a clearer error than the SQLite permission error.
         if not database_url:
             logger.critical("❌ DATABASE_URL environment variable is NOT set. Cannot connect to PostgreSQL.")
-            # Raise an error to stop app startup immediately if DB is not configured
             raise ValueError("DATABASE_URL environment variable must be set for PostgreSQL connection.")
         
         self.engine = create_engine(database_url)
