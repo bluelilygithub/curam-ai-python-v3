@@ -1,226 +1,113 @@
-"""
-Configuration management for Australian Property Intelligence
-Centralized configuration with validation
-"""
-
 import os
 import logging
 
+# Set up a logger for the config module
 logger = logging.getLogger(__name__)
 
 class Config:
-    """Centralized configuration management"""
+    # --- General Application Settings ---
+    APP_NAME = "Australian Property Intelligence API"
+    APP_VERSION = "3.0.0"
     
-    # API Keys
+    # --- Database Configuration ---
+    # Use environment variable for PostgreSQL, fallback to SQLite for local development
+    DATABASE_URL = os.getenv('DATABASE_URL')
+    DATABASE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'database', 'property_intelligence.db')
+
+    # --- API Keys and LLM Settings ---
+    # Claude API Key
     CLAUDE_API_KEY = os.getenv('CLAUDE_API_KEY')
+    CLAUDE_MODEL = "claude-3-5-sonnet-20241022"
+    CLAUDE_TEMPERATURE = 0.7
+    
+    # Gemini API Key
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+    GEMINI_MODEL = "gemini-1.5-flash"
+    GEMINI_TEMPERATURE = 0.7
     
-    # New API Keys
-    STABILITY_API_KEY = os.getenv('STABILITY_API_KEY')
-    HUGGING_FACE_API_KEY = os.getenv('HUGGING_FACE_API_KEY')
+    # Google Custom Search API Configuration for Web Search Tool
+    GOOGLE_CSE_API_KEY = os.getenv('GOOGLE_SEARCH_API_KEY') # Your API Key from Google Cloud
+    GOOGLE_CSE_CX = os.getenv('GOOGLE_SEARCH_CX')           # Your Custom Search Engine ID (cx)
+    GOOGLE_CSE_TOP_N_RESULTS = 3                         # Number of top search results to return
+    GOOGLE_CSE_SNIPPET_MAX_LENGTH = 300                  # Max length of snippet to send to LLM (for context window management)
+
+    # Stability AI (for image generation, if implemented in future phases)
+    STABILITY_AI_API_KEY = os.getenv('STABILITY_AI_API_KEY')
+    
+    # Hugging Face (for advanced NLP/ML models, if implemented)
+    HUGGING_FACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY') # Note: env var name matches Hugging Face convention
+
+    # MailChannels (for email functionality, if implemented)
     MAILCHANNELS_API_KEY = os.getenv('MAILCHANNELS_API_KEY')
+
+    # General LLM Timeout (in seconds)
+    LLM_TIMEOUT = 30 
     
-    # LLM Configuration
-    LLM_TIMEOUT = int(os.getenv('LLM_TIMEOUT', '30'))
-    LLM_MAX_RETRIES = int(os.getenv('LLM_MAX_RETRIES', '3'))
-    
-    # Claude Models (in priority order)
-    CLAUDE_MODELS = [
-        'claude-3-5-sonnet-20241022',
-        'claude-3-haiku-20240307',
-        'claude-3-sonnet-20240229'
-    ]
-    
-    # Gemini Models (in priority order)
-    GEMINI_MODELS = [
-        'gemini-1.5-flash',
-        'gemini-1.5-pro',
-        'gemini-pro'
-    ]
-    
-    # Feature Flags
-    CLAUDE_ENABLED = os.getenv('CLAUDE_ENABLED', 'true').lower() == 'true'
-    GEMINI_ENABLED = os.getenv('GEMINI_ENABLED', 'true').lower() == 'true'
-    
-    # New Service Feature Flags
-    STABILITY_ENABLED = os.getenv('STABILITY_ENABLED', 'true').lower() == 'true'
-    HUGGING_FACE_ENABLED = os.getenv('HUGGING_FACE_ENABLED', 'true').lower() == 'true'
-    MAILCHANNELS_ENABLED = os.getenv('MAILCHANNELS_ENABLED', 'true').lower() == 'true'
-    
-    # Database
-    DATABASE_PATH = os.getenv('DATABASE_PATH', 'property_intelligence.db')
-    
-    # CORS
+    # --- Frontend/CORS Configuration ---
     CORS_ORIGINS = [
-        'https://curam-ai.com.au',
-        'https://curam-ai.com.au/python-hub/',
-        'https://curam-ai.com.au/python-hub-v3/',
-        'http://localhost:3000',
-        'http://localhost:8000'
-    ]
-    
-    # Add development origins if in development
-    if os.getenv('FLASK_ENV') == 'development':
-        CORS_ORIGINS.append('*')
-    
-    # Australian Property Questions
-    PRESET_QUESTIONS = [
-    "What are the current trends in the Australian property market?",
-    "Which Australian cities are showing the strongest property growth?", 
-    "What major infrastructure projects are affecting property values across Australia?",
-    "Which suburbs across Australia are trending in property investment?",
-    "What regulatory changes are impacting the Australian property market?",
-    "What are the latest property development approvals across major Australian cities?",
-    "Which Australian property markets offer the best investment opportunities?",
-    "What are the emerging property hotspots in Australia?"
+        'https://curam-ai.com.au',                 # Main frontend domain
+        'https://curam-ai.com.au/python-hub/',     # Specific frontend path if used
+        'https://curam-ai.com.au/python-hub-v3/',  # Specific frontend path for V3
+        'http://localhost:3000',                   # Common React/frontend dev server
+        'http://localhost:8000',                   # Common Python dev server
+        # Add your Railway backend URL here if the frontend might call it directly (unlikely if served from same origin)
+        'https://curam-ai-python-v3-production.up.railway.app' # Allow self-access for health checks/internal
     ]
 
-    # Default example questions if no user history/popular questions are available yet
+    # --- RSS Feed Configuration ---
+    RSS_FEEDS = [
+        # Real Estate News & Market Updates
+        {"name": "RealEstate.com.au News", "url": "https://www.realestate.com.au/news/feed/", "categories": ["market", "investment"], "locations": ["national"]},
+        {"name": "Smart Property Investment", "url": "https://www.smartpropertyinvestment.com.au/rss.xml", "categories": ["investment", "strategy"], "locations": ["national"]},
+        {"name": "View.com.au Property News", "url": "https://www.view.com.au/news/rss", "categories": ["market", "trends"], "locations": ["national"]},
+        # Add more specific Australian property feeds as needed
+        # {"name": "REIQ News (QLD)", "url": "https://www.reiq.com/feed/", "categories": ["market", "qld"], "locations": ["brisbane", "queensland"]}
+    ]
+    RSS_TOP_N_ARTICLES_FOR_LLM = 5 # Max articles to send to LLM for context
+    RSS_CACHE_DURATION_HOURS = 1 # Cache RSS feed data to avoid frequent external calls
+
+    # --- Default Questions (Fallback for UI if no history/popular queries) ---
     DEFAULT_EXAMPLE_QUESTIONS = [
         "What are the current property market trends in Brisbane?",
         "How does interest rate change affect property values in Sydney?",
         "Analyze recent infrastructure developments impacting Melbourne property.",
         "What are the investment opportunities in Perth's residential market?"
     ]
-    
-    # RSS Data Sources
-    AUSTRALIAN_RSS_CONFIG = {
-            'cache_duration_hours': 1,
-            'max_articles_per_feed': 10,
-            'timeout_seconds': 15,
-            'national_focus': True
-        }
-    
-    # Stability AI Configuration
-    STABILITY_CONFIG = {
-        'base_url': 'https://api.stability.ai/v1',
-        'models': {
-            'chart_generation': 'stable-diffusion-v1-6',
-            'infographic': 'stable-diffusion-xl-1024-v1-0'
-        },
-        'default_params': {
-            'steps': 30,
-            'width': 1024,
-            'height': 1024,
-            'cfg_scale': 7.0
-        }
-    }
-    
-    # Hugging Face Configuration
-    HUGGING_FACE_CONFIG = {
-        'models': {
-            'sentiment': 'cardiffnlp/twitter-roberta-base-sentiment-latest',
-            'classification': 'facebook/bart-large-mnli',
-            'summarization': 'facebook/bart-large-cnn'
-        },
-        'api_url': 'https://api-inference.huggingface.co/models'
-    }
-    
-    # MailChannels Configuration
-    MAILCHANNELS_CONFIG = {
-        'api_url': 'https://api.mailchannels.net/tx/v1/send',
-        'from_email': 'noreply@curam-ai.com.au',
-        'from_name': 'Australian Property Intelligence',
-        'notification_types': [
-            'trend_alerts',
-            'weekly_summaries',
-            'system_updates'
-        ]
-    }
-    
-    @classmethod
-    def validate_config(cls):
-        """Validate critical configuration"""
-        issues = []
-        
-        # LLM Providers
-        if not cls.CLAUDE_API_KEY and cls.CLAUDE_ENABLED:
-            issues.append("CLAUDE_API_KEY missing but Claude is enabled")
-        
-        if not cls.GEMINI_API_KEY and cls.GEMINI_ENABLED:
-            issues.append("GEMINI_API_KEY missing but Gemini is enabled")
-        
-        if not cls.CLAUDE_ENABLED and not cls.GEMINI_ENABLED:
-            issues.append("No LLM providers enabled")
-        
-        # New Services
-        if not cls.STABILITY_API_KEY and cls.STABILITY_ENABLED:
-            issues.append("STABILITY_API_KEY missing but Stability AI is enabled")
-        
-        if not cls.HUGGING_FACE_API_KEY and cls.HUGGING_FACE_ENABLED:
-            issues.append("HUGGING_FACE_API_KEY missing but Hugging Face is enabled")
-        
-        if not cls.MAILCHANNELS_API_KEY and cls.MAILCHANNELS_ENABLED:
-            issues.append("MAILCHANNELS_API_KEY missing but MailChannels is enabled")
 
-        if not cls.GOOGLE_SEARCH_API_KEY and cls.GOOGLE_SEARCH_ENABLED:
-            issues.append("GOOGLE_SEACH_API_KEY missing but Google Search is enabled")
-
-        if not cls.GOOGLE_SEARCH_CX and cls.GOOGLE_CX_ENABLED:
-            issues.append("GOOGLE_SEARCH_CX missing but Google CX is enabled")
-        
-        # Timeouts
-        if cls.LLM_TIMEOUT < 5:
-            issues.append("LLM_TIMEOUT too low (minimum 5 seconds)")
-        
-        if issues:
-            logger.warning(f"Configuration issues: {', '.join(issues)}")
-        
-        return len(issues) == 0
-    
-    @classmethod
-    def get_enabled_llm_providers(cls):
-        """Get list of enabled LLM providers"""
-        providers = []
-        if cls.CLAUDE_ENABLED and cls.CLAUDE_API_KEY:
-            providers.append('claude')
-        if cls.GEMINI_ENABLED and cls.GEMINI_API_KEY:
-            providers.append('gemini')
-        return providers
-    
-    @classmethod
-    def get_enabled_services(cls):
-        """Get list of all enabled services"""
-        services = []
-        
-        # LLM Services
-        if cls.CLAUDE_ENABLED and cls.CLAUDE_API_KEY:
-            services.append('claude')
-        if cls.GEMINI_ENABLED and cls.GEMINI_API_KEY:
-            services.append('gemini')
-        
-        # New Services
-        if cls.STABILITY_ENABLED and cls.STABILITY_API_KEY:
-            services.append('stability_ai')
-        if cls.HUGGING_FACE_ENABLED and cls.HUGGING_FACE_API_KEY:
-            services.append('hugging_face')
-        if cls.MAILCHANNELS_ENABLED and cls.MAILCHANNELS_API_KEY:
-            services.append('mailchannels')
-        
-        return services
-    
-    @classmethod
-    def log_config_status(cls):
-        """Log configuration status for debugging"""
+    @staticmethod
+    def log_config_status():
+        """Logs the status of various configurations and API keys for debugging."""
         logger.info("=== Configuration Status ===")
+        logger.info(f"Claude Enabled: {'True' if Config.CLAUDE_API_KEY else 'False'}")
+        logger.info(f"Claude API Key: {'✓' if Config.CLAUDE_API_KEY else '✗'}")
+        logger.info(f"Gemini Enabled: {'True' if Config.GEMINI_API_KEY else 'False'}")
+        logger.info(f"Gemini API Key: {'✓' if Config.GEMINI_API_KEY else '✗'}")
         
-        # LLM Providers
-        logger.info(f"Claude Enabled: {cls.CLAUDE_ENABLED}")
-        logger.info(f"Claude API Key: {'✓' if cls.CLAUDE_API_KEY else '✗'}")
-        logger.info(f"Gemini Enabled: {cls.GEMINI_ENABLED}")
-        logger.info(f"Gemini API Key: {'✓' if cls.GEMINI_API_KEY else '✗'}")
+        logger.info(f"Google CSE Enabled: {'True' if Config.GOOGLE_CSE_API_KEY and Config.GOOGLE_CSE_CX else 'False'}")
+        logger.info(f"Google CSE API Key: {'✓' if Config.GOOGLE_CSE_API_KEY else '✗'}")
+        logger.info(f"Google CSE CX (Search Engine ID): {'✓' if Config.GOOGLE_CSE_CX else '✗'}")
+        logger.info(f"Google CSE Top N Results: {Config.GOOGLE_CSE_TOP_N_RESULTS}")
+        logger.info(f"Google CSE Snippet Max Length: {Config.GOOGLE_CSE_SNIPPET_MAX_LENGTH}")
+
+        logger.info(f"Stability AI Enabled: {'True' if Config.STABILITY_AI_API_KEY else 'False'}")
+        logger.info(f"Stability AI API Key: {'✓' if Config.STABILITY_AI_API_KEY else '✗'}")
         
-        # New Services
-        logger.info(f"Stability AI Enabled: {cls.STABILITY_ENABLED}")
-        logger.info(f"Stability AI API Key: {'✓' if cls.STABILITY_API_KEY else '✗'}")
-        logger.info(f"Hugging Face Enabled: {cls.HUGGING_FACE_ENABLED}")
-        logger.info(f"Hugging Face API Key: {'✓' if cls.HUGGING_FACE_API_KEY else '✗'}")
-        logger.info(f"MailChannels Enabled: {cls.MAILCHANNELS_ENABLED}")
-        logger.info(f"MailChannels API Key: {'✓' if cls.MAILCHANNELS_API_KEY else '✗'}")
+        logger.info(f"Hugging Face Enabled: {'True' if Config.HUGGING_FACE_API_KEY else 'False'}")
+        logger.info(f"Hugging Face API Key: {'✓' if Config.HUGGING_FACE_API_KEY else '✗'}")
         
-        # System
-        logger.info(f"LLM Timeout: {cls.LLM_TIMEOUT}s")
-        logger.info(f"Database Path: {cls.DATABASE_PATH}")
-        logger.info(f"All Enabled Services: {cls.get_enabled_services()}")
-        logger.info("=" * 30)
+        logger.info(f"MailChannels Enabled: {'True' if Config.MAILCHANNELS_API_KEY else 'False'}")
+        logger.info(f"MailChannels API Key: {'✓' if Config.MAILCHANNELS_API_KEY else '✗'}")
+        
+        logger.info(f"LLM Timeout: {Config.LLM_TIMEOUT}s")
+        logger.info(f"Database Path: {Config.DATABASE_PATH}")
+
+        enabled_services_list = []
+        if Config.CLAUDE_API_KEY: enabled_services_list.append('claude')
+        if Config.GEMINI_API_KEY: enabled_services_list.append('gemini')
+        if Config.STABILITY_AI_API_KEY: enabled_services_list.append('stability_ai')
+        if Config.HUGGING_FACE_API_KEY: enabled_services_list.append('hugging_face')
+        if Config.MAILCHANNELS_API_KEY: enabled_services_list.append('mailchannels')
+        if Config.GOOGLE_CSE_API_KEY and Config.GOOGLE_CSE_CX: enabled_services_list.append('google_cse')
+
+        logger.info(f"All Enabled Services: {enabled_services_list}")
+        logger.info("==============================")
