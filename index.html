@@ -668,10 +668,11 @@
                         span.textContent = typeLabel;
                         button.appendChild(span);
 
-                        buttonWrapper.appendChild(button); // Add button to wrapper - THIS WAS THE MISSING LINE
+                        buttonWrapper.appendChild(button); // Add button to wrapper
 
                         // Add Delete Button for dynamic questions (recent_user or popular_global)
-                        if (q.type === 'recent_user' || q.type === 'popular_global') {
+                        // Only add if query_id is available, preventing deletion of hardcoded examples if they somehow get mixed in
+                        if (q.type !== 'example' && q.query_id) { 
                             const deleteBtn = document.createElement('button');
                             deleteBtn.className = 'delete-preset-btn';
                             deleteBtn.innerHTML = '&times;'; // '×' character
@@ -712,6 +713,115 @@
             }
         }
 
+        // --- THE analyzeQuestion FUNCTION GOES HERE ---
+        // This is the complete, corrected version of analyzeQuestion
+        async function analyzeQuestion(question) {
+            if (!currentUser) {
+                alert('Please select a user first');
+                return;
+            }
+
+            const user = demoUsers.find(u => u.user_id === currentUser);
+
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Analyzing property question for ${user?.name}...</p>
+                </div>
+            `;
+
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
+
+            try {
+                console.log(`🔍 Analyzing question for ${currentUser}: ${question}`);
+                
+                const response = await fetch(`${API_BASE}/api/property/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        user_id: currentUser
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const formattedAnswerHtml = marked.parse(data.answer || '');
+
+                    resultsDiv.innerHTML = `
+                        <div class="results fade-in">
+                            <h3>📋 Analysis Results for ${user?.name}</h3>
+                            <div class="analysis-content">${formattedAnswerHtml}</div>
+                            <div class="metadata">
+                                <div class="metadata-item">
+                                    <span><strong>Location:</strong></span>
+                                    <span>${data.metadata.location_detected}</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span><strong>Processing Time:</strong></span>
+                                    <span>${data.processing_time}s</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span><strong>LLM Provider:</strong></span>
+                                    <span>${data.metadata.llm_provider}</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span><strong>Confidence:</strong></span>
+                                    <span>${Math.round(data.metadata.confidence * 100)}%</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span><strong>Query ID:</strong></span>
+                                    <span>#${data.query_id}</span>
+                                </div>
+                                <div class="metadata-item">
+                                    <span><strong>User:</strong></span>
+                                    <span>${currentUser}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    await loadUserStats(currentUser);
+                    await loadSystemStats();
+                    
+                    // Clear input field after successful analysis
+                    document.getElementById('customQuestion').value = ''; 
+                    // Refresh preset questions to show the newly asked one
+                    renderPresetQuestions(currentUser); 
+
+                    console.log(`✅ Analysis completed for ${currentUser}`);
+                } else {
+                    addActivity('error', '❌', 'Analysis Failed', data.error || 'Unknown error occurred', { status: 'Error' });
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="results">
+                            <h3>❌ Analysis Failed</h3>
+                            <p>Sorry, we couldn't analyze your question. Please try again.</p>
+                            <p class="error-details">${data.error}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('❌ Error analyzing question:', error);
+                addActivity('error', '❌', 'Analysis Error', error.message, { status: 'Error' });
+                
+                resultsDiv.innerHTML = `
+                    <div class="results">
+                        <h3>❌ Error</h3>
+                        <p>An error occurred while analyzing your question.</p>
+                        <p class="error-details">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        // --- END analyzeQuestion FUNCTION ---
+
+
         // Function to delete a question
         async function deleteQuestion(queryId) {
             try {
@@ -745,12 +855,11 @@
             }
         }
 
-        // Analyze custom question
+        // Analyze custom question (this just calls analyzeQuestion with input field content)
         function analyzeCustomQuestion() {
             const question = document.getElementById('customQuestion').value.trim();
             if (question) {
                 analyzeQuestion(question);
-                // The clearing of the input field is now handled inside analyzeQuestion after LLM response.
             }
         }
 
@@ -949,3 +1058,4 @@
     </script>
 </body>
 </html>
+```
