@@ -81,7 +81,7 @@ class PropertyAnalysisService:
             elif search_decision and search_decision.get("action") == "analyze_directly":
                 logger.info(f"LLM decided to analyze directly based on reason: {search_decision.get('reason', 'N/A')}")
             else:
-                logger.warning("LLM search decision could not be parsed or was invalid. Proceeding without search context.")
+                logger.warning("LLM search decision could not be parsed or was invalid. Assuming direct analysis.")
 
 
             # 4. Final LLM Analysis with All Context
