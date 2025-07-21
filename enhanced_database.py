@@ -7,44 +7,26 @@ from datetime import datetime
 
 # Import Config, assuming it's available and defines DATABASE_PATH
 from config import Config 
+# Corrected import: Import Query and Base from models.py
+from models import Base, Query 
 
 logger = logging.getLogger(__name__)
 
-# Define the base for declarative models
-Base = declarative_base()
-
-# Define the Query model for SQLAlchemy
-class Query(Base):
-    __tablename__ = 'queries' # Table name in the database
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    question = Column(Text, nullable=False)
-    answer = Column(Text, nullable=False)
-    question_type = Column(String(50), default='custom')
-    processing_time = Column(Float)
-    success = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
-
-    # V3 enhanced fields for analytics and user tracking
-    location_detected = Column(String(100))
-    llm_provider = Column(String(50))
-    confidence_score = Column(Float)
-    user_id = Column(String(100), default='anonymous') # User ID for personalization
-
-    def __repr__(self):
-        return f"<Query(id={self.id}, user_id='{self.user_id}', question='{self.question[:50]}...')>"
+# Base is now imported from models.py, not declared here.
+# Query class is now defined in models.py, removed from here.
 
 # Main Database Service Class
 class PropertyDatabase:
     def __init__(self):
         database_url = os.getenv('DATABASE_URL')
-
+        
         # --- CRITICAL CHANGE: REMOVE SQLITE FALLBACK AND FORCE PGSQL ---
         # This will explicitly crash the app if DATABASE_URL is not set,
         # providing a clearer error than the SQLite permission error.
         if not database_url:
             logger.critical("❌ DATABASE_URL environment variable is NOT set. Cannot connect to PostgreSQL.")
             raise ValueError("DATABASE_URL environment variable must be set for PostgreSQL connection.")
-
+        
         self.engine = create_engine(database_url)
         logger.info("Using PostgreSQL database (DATABASE_URL detected).")
         # --- END CRITICAL CHANGE ---
@@ -107,9 +89,9 @@ class PropertyDatabase:
             query = session.query(Query).order_by(Query.created_at.desc()) # Order by newest first
             if user_id:
                 query = query.filter_by(user_id=user_id)
-
+            
             history_records = query.limit(limit).all()
-
+            
             # Convert SQLAlchemy objects to dictionaries for API response
             history_data = []
             for record in history_records:
@@ -143,22 +125,22 @@ class PropertyDatabase:
         try:
             # Get total queries for the user
             total_queries = session.query(Query).filter_by(user_id=user_id).count()
-
+            
             # Calculate average processing time for successful queries
             avg_time_result = session.query(
                 func.avg(Query.processing_time)
             ).filter_by(user_id=user_id, success=True).scalar()
-
+            
             # Ensure avg_processing_time is always a number, even if no queries or result is None
             avg_processing_time = round(avg_time_result, 2) if avg_time_result is not None else 0.0
-
+            
             # Get recent queries for this user (e.g., last 5)
             # This relies on your existing get_query_history method
             recent_queries = self.get_query_history(limit=5, user_id=user_id)
-
+            
             # Get user info (assuming a separate User table or hardcoded demo users)
             user_info = self._get_demo_user_info(user_id) # This function gets hardcoded info
-
+            
             # Return a complete dictionary structure, even if no queries exist for the user
             return {
                 'user': user_info,
@@ -223,7 +205,7 @@ class PropertyDatabase:
         try:
             total_queries = session.query(Query).count()
             last_query_time = session.query(Query.created_at).order_by(Query.created_at.desc()).first()
-
+            
             return {
                 'total_queries_stored': total_queries,
                 'last_query_at': last_query_time[0].isoformat() if last_query_time else None,
@@ -252,11 +234,11 @@ class PropertyDatabase:
 
             if user_id:
                 counted_questions_subquery = counted_questions_subquery.filter_by(user_id=user_id)
-
+            
             # Order by count in descending order and limit
             popular_records = counted_questions_subquery.order_by(func.count(Query.question).desc()) \
                                    .limit(limit).all()
-
+            
             popular_data = []
             for record in popular_records:
                 popular_data.append({
@@ -264,7 +246,7 @@ class PropertyDatabase:
                     'count': record.count,
                     'id': record.representative_id # Use the representative ID
                 })
-
+            
             logger.debug(f"Retrieved {len(popular_data)} popular questions.")
             return popular_data
         except Exception as e:

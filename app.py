@@ -80,6 +80,9 @@ def initialize_services():
     # Log the configured status from config.py
     Config.log_config_status()
     
+    # NEW: Validate Config attributes directly
+    Config.validate_config()
+
     # Initialize Database Service (using PostgreSQL with SQLAlchemy)
     try:
         services['database'] = PropertyDatabase()
@@ -89,13 +92,17 @@ def initialize_services():
         services['database'] = None
     
     # Initialize LLM Service (integrates Claude and Gemini)
-    try:
-        services['llm'] = LLMService()
-        logger.info("✅ LLM service initialized")
-    except Exception as e:
-        logger.error(f"❌ LLM service initialization failed: {e}")
+    if Config.CLAUDE_ENABLED or Config.GEMINI_ENABLED:
+        try:
+            services['llm'] = LLMService()
+            logger.info("✅ LLM service initialized")
+        except Exception as e:
+            logger.error(f"❌ LLM service initialization failed: {e}")
+            services['llm'] = None
+    else:
+        logger.warning("⚠️ LLM Service skipped: No Claude or Gemini API keys configured.")
         services['llm'] = None
-    
+
     # Initialize RSS Service (for Australian Property Data)
     try:
         from services.rss_service import RSSService # Imported here to avoid circular dependencies if RSSService imports app
@@ -105,14 +112,18 @@ def initialize_services():
         logger.error(f"❌ RSS service initialization failed: {e}")
         services['rss'] = None
 
-    # NEW: Initialize Web Search Service
-    try:
-        services['web_search'] = WebSearchService()
-        logger.info("✅ Web Search service initialized.")
-        if not services['web_search'].is_available:
-            logger.warning("⚠️ Web Search service is not fully available due to missing configuration (API key/CX).")
-    except Exception as e:
-        logger.error(f"❌ Web Search service initialization failed: {e}")
+    # Initialize Web Search Service
+    if Config.GOOGLE_CSE_ENABLED:
+        try:
+            services['web_search'] = WebSearchService()
+            logger.info("✅ Web Search service initialized.")
+            if not services['web_search'].is_available: # Check availability after init for more granular logging
+                logger.warning("⚠️ Web Search service is not fully available due to missing configuration (API key/CX).")
+        except Exception as e:
+            logger.error(f"❌ Web Search service initialization failed: {e}")
+            services['web_search'] = None
+    else:
+        logger.warning("⚠️ Web Search service skipped: Google CSE API keys not configured.")
         services['web_search'] = None
     
     # Initialize Property Analysis Service (orchestrates LLM, RSS, and now Web Search)
@@ -125,6 +136,7 @@ def initialize_services():
             logger.error(f"❌ Property service initialization failed: {e}")
             services['property'] = None
     else:
+        logger.warning("⚠️ Property Analysis service skipped: LLM service not available.")
         services['property'] = None
     
     # Initialize Health Checker Service (monitors the status of all other services)
@@ -599,8 +611,8 @@ def get_property_history():
             'success': True,
             'history': history,
             'count': len(history),
+            'user_id': user_id,
             'limit': limit,
-            'user_filter': user_id,
             'timestamp': datetime.now().isoformat()
         })
         
@@ -694,6 +706,17 @@ def get_property_stats():
             except Exception as e:
                 logger.error(f"Failed to retrieve RSS service status: {e}")
                 stats['rss_status'] = {'error': str(e)}
+        
+        # Get Web Search service status
+        if services['web_search']:
+            try:
+                web_search_health = services['web_search'].get_health_status()
+                stats['web_search_status'] = web_search_health
+            except Exception as e:
+                logger.error(f"Failed to retrieve Web Search service status: {e}")
+                stats['web_search_status'] = {'error': str(e)}
+        else:
+            stats['web_search_status'] = {'status': 'not_available', 'details': 'Service not initialized'} # Added explicit status if not initialized
         
         return jsonify({
             'success': True,
