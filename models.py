@@ -19,6 +19,10 @@ class Query(Base):
     processing_time = Column(Float) # Time taken for analysis
     success = Column(Boolean, default=True) # Was the analysis successful?
     created_at = Column(DateTime, default=datetime.now) # Timestamp of query creation
+
+    tokens_used = Column(Integer, default=0)  # Tokens consumed by this specific query
+    tokens_remaining = Column(Integer)         # Tokens remaining after this query
+
     
     # Enhanced fields for V3 analytics and user tracking
     location_detected = Column(String(100)) # e.g., 'Brisbane', 'National'
@@ -29,3 +33,16 @@ class Query(Base):
     def __repr__(self):
         """String representation for debugging."""
         return f"<Query(id={self.id}, user_id='{self.user_id}', question='{self.question[:50]}...')>"
+
+
+class UserSession(Base):
+__tablename__ = 'user_sessions'
+
+id = Column(Integer, primary_key=True, autoincrement=True)
+user_id = Column(String(100), nullable=False)
+session_start = Column(DateTime, default=datetime.now)
+session_end = Column(DateTime)
+total_tokens_used = Column(Integer, default=0)
+token_limit = Column(Integer, nullable=False)
+queries_count = Column(Integer, default=0)
+is_active = Column(Boolean, default=True)

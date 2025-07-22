@@ -354,3 +354,16 @@ class PropertyDatabase:
             raise
         finally:
             session.close()
+
+
+    def create_user_session(self, user_id: str) -> int:
+    """Creates a new session for token tracking."""
+    
+    def get_user_token_usage(self, user_id: str) -> dict:
+    """Returns current token usage for user."""
+    
+    def update_token_usage(self, query_id: int, tokens_used: int) -> bool:
+    """Updates token usage for a specific query."""
+    
+    def check_token_limit(self, user_id: str, estimated_tokens: int) -> dict:
+    """Checks if user can make a request within token limits."""

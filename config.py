@@ -223,3 +223,31 @@ class Config:
                 info["database_host"] = "parsing_error"
         
         return info
+
+
+        # --- TOKEN MANAGEMENT CONFIGURATION ---
+    TOKEN_LIMITS = {
+        'sarah_buyer': {
+            'daily_limit': 10000,
+            'session_limit': 5000,
+            'warning_threshold': 0.8,  # 80% warning
+            'critical_threshold': 0.95  # 95% critical
+        },
+        'michael_investor': {
+            'daily_limit': 15000,
+            'session_limit': 7500,
+            'warning_threshold': 0.8,
+            'critical_threshold': 0.95
+        },
+        'anonymous': {
+            'daily_limit': 3000,
+            'session_limit': 1500,
+            'warning_threshold': 0.8,
+            'critical_threshold': 0.95
+        }
+    }
+
+    # Token tracking settings
+    TOKEN_RESET_HOUR = 0  # Reset daily limits at midnight
+    SESSION_TIMEOUT_HOURS = 24  # Sessions expire after 24 hours
+    TOKEN_BUFFER = 100  # Reserve 100 tokens for response completion
